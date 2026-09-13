@@ -10,17 +10,17 @@ public sealed class CommonMessagingEngagementNotifier : IEngagementNotifier
     private const string SlackChannelMetadataKey = "slack.channel";
     private readonly IExternalDeliveryQueue queue;
     private readonly HashSet<EngagementChannel> supportedExternalChannels;
-    private readonly string? publicBaseUrl;
+    private readonly IEngagementActionLinkBuilder? actionLinks;
 
     public CommonMessagingEngagementNotifier(
         IExternalDeliveryQueue queue,
         IEnumerable<EngagementChannel> supportedExternalChannels,
-        string? publicBaseUrl = null)
+        IEngagementActionLinkBuilder? actionLinks = null)
     {
         this.queue = queue ?? throw new ArgumentNullException(nameof(queue));
         this.supportedExternalChannels = supportedExternalChannels?.ToHashSet()
             ?? throw new ArgumentNullException(nameof(supportedExternalChannels));
-        this.publicBaseUrl = string.IsNullOrWhiteSpace(publicBaseUrl) ? null : publicBaseUrl.TrimEnd('/');
+        this.actionLinks = actionLinks;
     }
 
     public async Task<EngagementChannel?> DeliverAsync(
@@ -38,9 +38,7 @@ public sealed class CommonMessagingEngagementNotifier : IEngagementNotifier
             if (attempted.Contains(channel) || !policy.HasEndpoint(channel)) continue;
 
             if (channel == EngagementChannel.Web)
-            {
                 return EngagementChannel.Web;
-            }
 
             if (!supportedExternalChannels.Contains(channel)) continue;
             var endpoint = policy.Endpoints.FirstOrDefault(x => x.Enabled && x.Channel == channel && !string.IsNullOrWhiteSpace(x.Address));
@@ -197,12 +195,17 @@ public sealed class CommonMessagingEngagementNotifier : IEngagementNotifier
                    $"Location: {engagement.Location}\n" +
                    $"Customer prefers: {engagement.RequestedChannel}";
 
-        if (publicBaseUrl is null) return body + $"\nEngagement: {engagement.Id:D}";
+        var view = actionLinks?.BuildViewLink(engagement.Id);
+        var accept = actionLinks?.BuildResponseLink(engagement.Id, EngagementResponse.Accept);
+        var decline = actionLinks?.BuildResponseLink(engagement.Id, EngagementResponse.Decline);
 
-        var view = $"{publicBaseUrl}/engagements/{engagement.Id:D}";
-        var accept = $"{publicBaseUrl}/engagements/{engagement.Id:D}/respond?decision=accept";
-        var decline = $"{publicBaseUrl}/engagements/{engagement.Id:D}/respond?decision=decline";
-        return body + $"\n\nView: {view}\nAccept: {accept}\nDecline: {decline}";
+        if (!string.IsNullOrWhiteSpace(view)) body += $"\n\nView: {view}";
+        if (!string.IsNullOrWhiteSpace(accept)) body += $"\nAccept: {accept}";
+        if (!string.IsNullOrWhiteSpace(decline)) body += $"\nDecline: {decline}";
+        if (string.IsNullOrWhiteSpace(view) && string.IsNullOrWhiteSpace(accept) && string.IsNullOrWhiteSpace(decline))
+            body += $"\nEngagement: {engagement.Id:D}";
+
+        return body;
     }
 
     private static bool LooksLikeSlackUserId(string value) =>
@@ -223,14 +226,7 @@ public sealed class CommonMessagingMobileVerificationSender(IExternalDeliveryQue
 {
     public async Task SendCodeAsync(string mobileNumber, string code, CancellationToken cancellationToken = default)
     {
-        var recipient = new RecipientSnapshot(
-            mobileNumber,
-            "Ebolito User",
-            null,
-            null,
-            mobileNumber,
-            MessageChannel.Sms);
-
+        var recipient = new RecipientSnapshot(mobileNumber, "Ebolito User", null, null, mobileNumber, MessageChannel.Sms);
         var request = new MessageRequest
         {
             RecipientIds = [recipient.UserId],
