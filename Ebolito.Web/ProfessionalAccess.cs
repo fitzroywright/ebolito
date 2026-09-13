@@ -21,8 +21,7 @@ public sealed class ProfessionalSessionTokenService
         var configured = Environment.GetEnvironmentVariable("EBOLITO_PROFESSIONAL_SESSION_KEY");
         if (string.IsNullOrWhiteSpace(configured))
         {
-            if (!environment.IsDevelopment())
-                throw new InvalidOperationException("EBOLITO_PROFESSIONAL_SESSION_KEY must be configured outside Development.");
+            if (!environment.IsDevelopment()) throw new InvalidOperationException("EBOLITO_PROFESSIONAL_SESSION_KEY must be configured outside Development.");
             configured = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         }
         signingKey = Encoding.UTF8.GetBytes(configured);
@@ -33,8 +32,7 @@ public sealed class ProfessionalSessionTokenService
     {
         var expiresAt = DateTimeOffset.UtcNow.Add(lifetime);
         var expires = expiresAt.ToUnixTimeSeconds();
-        var signature = Sign(professionalId, expires);
-        return new ProfessionalSession(professionalId, $"{professionalId:D}.{expires}.{signature}", expiresAt);
+        return new ProfessionalSession(professionalId, $"{professionalId:D}.{expires}.{Sign(professionalId, expires)}", expiresAt);
     }
 
     public bool TryValidate(HttpRequest request, Guid expectedProfessionalId)
@@ -71,19 +69,28 @@ public sealed class ProfessionalSignInService(
     IMobileVerificationSender sender,
     ProfessionalSessionTokenService sessions)
 {
-    private sealed record Pending(Guid Id, Guid ProfessionalId, string CodeHash, DateTimeOffset ExpiresAt);
+    private sealed record Pending(Guid Id, Guid ProfessionalId, string CodeHash, DateTimeOffset ExpiresAt, int Attempts);
     private readonly ConcurrentDictionary<Guid, Pending> challenges = new();
+    private readonly ConcurrentDictionary<Guid, DateTimeOffset> lastSent = new();
     private static readonly TimeSpan ChallengeLifetime = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan ResendCooldown = TimeSpan.FromSeconds(60);
+    private const int MaximumAttempts = 5;
 
     public async Task<ProfessionalSignInChallenge> StartAsync(Guid professionalId, CancellationToken ct)
     {
+        var now = DateTimeOffset.UtcNow;
+        if (lastSent.TryGetValue(professionalId, out var sentAt) && now - sentAt < ResendCooldown)
+            throw new InvalidOperationException("A verification code was sent recently. Try again in a minute.");
+
         var professional = await store.GetProfessionalAsync(professionalId, ct) ?? throw new InvalidOperationException("Professional not found.");
         if (!professional.IsActive) throw new InvalidOperationException("Professional account is inactive.");
         if (string.IsNullOrWhiteSpace(professional.PhoneNumber)) throw new InvalidOperationException("This professional does not have a mobile number configured for sign-in.");
 
+        RemoveExpired(now);
         var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
-        var pending = new Pending(Guid.NewGuid(), professional.Id, Hash(code), DateTimeOffset.UtcNow.Add(ChallengeLifetime));
+        var pending = new Pending(Guid.NewGuid(), professional.Id, Hash(code), now.Add(ChallengeLifetime), 0);
         challenges[pending.Id] = pending;
+        lastSent[professional.Id] = now;
         await sender.SendCodeAsync(professional.PhoneNumber, code, ct);
         return new ProfessionalSignInChallenge(pending.Id, pending.ExpiresAt, Mask(professional.PhoneNumber));
     }
@@ -96,12 +103,29 @@ public sealed class ProfessionalSignInService(
             challenges.TryRemove(challengeId, out _);
             throw new InvalidOperationException("Sign-in challenge has expired.");
         }
+
         var expected = Convert.FromHexString(pending.CodeHash);
         var actual = Convert.FromHexString(Hash(code));
         if (expected.Length != actual.Length || !CryptographicOperations.FixedTimeEquals(expected, actual))
+        {
+            var attempts = pending.Attempts + 1;
+            if (attempts >= MaximumAttempts)
+            {
+                challenges.TryRemove(challengeId, out _);
+                throw new InvalidOperationException("Too many incorrect verification attempts. Request a new code.");
+            }
+            challenges.TryUpdate(challengeId, pending with { Attempts = attempts }, pending);
             throw new InvalidOperationException("Verification code is incorrect.");
+        }
+
         challenges.TryRemove(challengeId, out _);
         return Task.FromResult(sessions.Issue(pending.ProfessionalId));
+    }
+
+    private void RemoveExpired(DateTimeOffset now)
+    {
+        foreach (var pair in challenges.Where(x => x.Value.ExpiresAt <= now)) challenges.TryRemove(pair.Key, out _);
+        foreach (var pair in lastSent.Where(x => now - x.Value > ChallengeLifetime)) lastSent.TryRemove(pair.Key, out _);
     }
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value.Trim())));
@@ -114,8 +138,7 @@ public sealed class ProfessionalSignInService(
 
 public static class ProfessionalAccess
 {
-    public static bool IsAuthorized(HttpRequest request, Guid professionalId, ProfessionalSessionTokenService sessions) =>
-        ProfileAdministration.IsAuthorized(request) || sessions.TryValidate(request, professionalId);
+    public static bool IsAuthorized(HttpRequest request, Guid professionalId, ProfessionalSessionTokenService sessions) => ProfileAdministration.IsAuthorized(request) || sessions.TryValidate(request, professionalId);
 
     public static IEndpointRouteBuilder MapProfessionalAccessEndpoints(this IEndpointRouteBuilder endpoints)
     {
@@ -124,7 +147,6 @@ public static class ProfessionalAccess
             try { return Results.Ok(await signIn.StartAsync(request.ProfessionalId, ct)); }
             catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
-
         endpoints.MapPost("/api/professional-auth/complete", async (ProfessionalSignInComplete request, ProfessionalSignInService signIn) =>
         {
             try { return Results.Ok(await signIn.CompleteAsync(request.ChallengeId, request.Code)); }
