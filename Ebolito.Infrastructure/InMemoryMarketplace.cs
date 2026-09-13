@@ -91,6 +91,12 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
         return Task.FromResult(new ProfessionalNotificationPolicy(professionalId, EngagementChannel.WhatsApp, null, EngagementChannel.Sms, TimeSpan.FromMinutes(10), [EngagementChannel.WhatsApp, EngagementChannel.Sms], []));
     }
 
+    public Task SaveNotificationPolicyAsync(ProfessionalNotificationPolicy policy, CancellationToken cancellationToken = default)
+    {
+        _notificationPolicies[policy.ProfessionalId] = policy;
+        return Task.CompletedTask;
+    }
+
     public Task SaveDeliveryAttemptAsync(EngagementDeliveryAttempt attempt, CancellationToken cancellationToken = default)
     {
         _deliveryAttempts.GetOrAdd(attempt.EngagementId, _ => new ConcurrentQueue<EngagementDeliveryAttempt>()).Enqueue(attempt);
@@ -106,7 +112,7 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
 
 public sealed class FallbackEngagementNotifier : IEngagementNotifier
 {
-    public Task<EngagementChannel> DeliverAsync(
+    public Task<EngagementChannel?> DeliverAsync(
         Professional professional,
         CustomerIdentity customer,
         Engagement engagement,
@@ -115,10 +121,11 @@ public sealed class FallbackEngagementNotifier : IEngagementNotifier
         CancellationToken cancellationToken = default)
     {
         var attempted = previousAttempts.Where(x => x.Succeeded).Select(x => x.Channel).ToHashSet();
-        var next = policy.BuildRoute().FirstOrDefault(channel => !attempted.Contains(channel) && policy.HasEndpoint(channel));
+        EngagementChannel? next = policy.BuildRoute()
+            .Where(channel => !attempted.Contains(channel) && policy.HasEndpoint(channel))
+            .Select(channel => (EngagementChannel?)channel)
+            .FirstOrDefault();
 
-        // Common.Messaging owns the real transport. This fallback chooses the same route deterministically
-        // so development exercises Ebolito's policy and escalation without pretending to send externally.
         return Task.FromResult(next);
     }
 
