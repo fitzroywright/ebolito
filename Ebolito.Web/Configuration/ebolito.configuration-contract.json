@@ -1,7 +1,7 @@
 {
   "applicationId": "Ebolito",
   "displayName": "Ebolito Skills & Services",
-  "version": "1.3",
+  "version": "1.4",
   "requirements": [
     {
       "id": "database",
@@ -34,6 +34,16 @@
       "instructionId": "ebolito.customer-session-key"
     },
     {
+      "id": "professional-session-signing",
+      "displayName": "Professional Session Signing Credential",
+      "kind": "Secret",
+      "required": true,
+      "purpose": "Signs professional-scoped mobile-verified sessions used for inbox, profile, portfolio, engagement progression and notification-routing management.",
+      "environmentVariable": "EBOLITO_PROFESSIONAL_SESSION_KEY",
+      "validator": "secret-present",
+      "instructionId": "ebolito.professional-session-key"
+    },
+    {
       "id": "portfolio-storage",
       "displayName": "Portfolio Media Storage Root",
       "kind": "Configuration",
@@ -57,7 +67,7 @@
       "displayName": "Common.Diagnostics",
       "kind": "Diagnostic",
       "required": true,
-      "purpose": "Provides bounded operational verification for marketplace, database, identity, customer-session security, portfolio storage, notification routing, action-link security and messaging health. Environment-only machine credentials are checked by diagnostics until Common.Secrets integration is enabled for them.",
+      "purpose": "Provides bounded operational verification for marketplace, database, customer and professional identity/session security, portfolio storage, notification routing, action-link security and messaging health. Environment-only machine credentials are checked by diagnostics until Common.Secrets integration is enabled for them.",
       "validator": "diagnostics",
       "instructionId": "common.diagnostics"
     }
