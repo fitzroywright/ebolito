@@ -30,8 +30,11 @@
     reviewWrap.hidden = true;
     try {
       const id = idInput.value.trim();
-      if (!id) throw new Error('Engagement ID is required.');
-      const response = await fetch(`/api/engagements/${encodeURIComponent(id)}`);
+      const key = keyInput.value.trim();
+      if (!id || !key) throw new Error('Engagement ID and administration key are required.');
+      const response = await fetch(`/api/engagements/${encodeURIComponent(id)}`, {
+        headers: { 'X-Ebolito-Profile-Admin-Key': key }
+      });
       const engagement = await readJson(response);
       renderEngagement(engagement);
       if ((statusNames[engagement.status] || '') === 'Completed') showReview(`/review.html?engagement=${encodeURIComponent(id)}`);
