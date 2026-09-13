@@ -45,7 +45,29 @@
     <form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form>
     <h2>Request <span data-professional-name>a professional</span></h2>
     <p>Your verified Ebolito identity is used so the professional knows who is requesting contact. The professional can receive this by WhatsApp or SMS without needing to stay online.</p>
-    <form data-engagement-form>
+
+    <section data-identity-start>
+      <h3>Verify your mobile number</h3>
+      <form data-identity-start-form>
+        <label>Your name<input name="displayName" required autocomplete="name"></label>
+        <label>Mobile number<input name="mobileNumber" required inputmode="tel" autocomplete="tel" placeholder="876-555-1234"></label>
+        <label>Email (optional)<input name="email" type="email" autocomplete="email"></label>
+        <button type="submit">Send verification code</button>
+        <p data-identity-start-status></p>
+      </form>
+    </section>
+
+    <section data-identity-complete hidden>
+      <h3>Enter the code we sent</h3>
+      <form data-identity-complete-form>
+        <input type="hidden" name="challengeId">
+        <label>Verification code<input name="code" required inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code"></label>
+        <button type="submit">Verify</button>
+        <p data-identity-complete-status></p>
+      </form>
+    </section>
+
+    <form data-engagement-form hidden>
       <input type="hidden" name="professionalId">
       <label>What do you need?<textarea name="requestText" required placeholder="Briefly describe the job"></textarea></label>
       <label>Where is the job?<input name="location" required placeholder="Community or parish"></label>
