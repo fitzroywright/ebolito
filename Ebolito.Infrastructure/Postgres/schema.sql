@@ -19,6 +19,16 @@ create table if not exists professionals (
   is_active boolean not null default true
 );
 
+create table if not exists professional_notification_policies (
+  professional_id uuid primary key references professionals(id) on delete cascade,
+  primary_channel integer not null,
+  business_channel integer null,
+  fallback_channel integer not null,
+  escalation_after_seconds integer not null default 600,
+  escalation_order integer[] not null default '{}',
+  endpoints jsonb not null default '[]'::jsonb
+);
+
 create table if not exists portfolio_projects (
   id uuid primary key,
   professional_id uuid not null references professionals(id) on delete cascade,
@@ -63,8 +73,19 @@ create table if not exists engagements (
   updated_at timestamptz not null
 );
 
+create table if not exists engagement_delivery_attempts (
+  id uuid primary key,
+  engagement_id uuid not null references engagements(id) on delete cascade,
+  channel integer not null,
+  attempted_at timestamptz not null,
+  succeeded boolean not null,
+  detail text null
+);
+
 create index if not exists ix_professionals_slug on professionals(slug);
 create index if not exists ix_portfolio_professional on portfolio_projects(professional_id);
 create index if not exists ix_reviews_professional on reviews(professional_id);
 create index if not exists ix_engagements_professional on engagements(professional_id);
 create index if not exists ix_engagements_customer on engagements(customer_id);
+create index if not exists ix_engagements_unacknowledged on engagements(status, updated_at);
+create index if not exists ix_delivery_attempts_engagement on engagement_delivery_attempts(engagement_id, attempted_at);
