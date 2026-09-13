@@ -3,6 +3,9 @@ using System.Security.Cryptography;
 using System.Text;
 using Ebolito.Application;
 using Ebolito.Infrastructure;
+#if COMMON_STORAGE
+using Common.Storage;
+#endif
 
 namespace Ebolito.Web;
 
@@ -89,6 +92,19 @@ public sealed class EbolitoEngineeringDiagnostics(
                 commonMessagingCompiled
                     ? "Common.Messaging is present in the flat workspace and the production adapter is compiled."
                     : "Common.Messaging was not present at build time; Ebolito is using its deterministic fallback adapter."));
+
+#if COMMON_STORAGE
+            const bool commonStorageCompiled = true;
+#else
+            const bool commonStorageCompiled = false;
+#endif
+            checks.Add(new(
+                "storage.common",
+                "Common.Storage workspace integration",
+                commonStorageCompiled ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.Warning,
+                commonStorageCompiled
+                    ? "Common.Storage is present in the flat workspace and portfolio media support is compiled."
+                    : "Common.Storage was not present at build time; portfolio upload is unavailable."));
         }
 
         if (level <= 3)
@@ -103,6 +119,34 @@ public sealed class EbolitoEngineeringDiagnostics(
             {
                 checks.Add(new("marketplace.read", "Marketplace read path", EngineeringDiagnosticStatus.Failed, "Marketplace read path failed.", ex.GetType().Name));
             }
+
+#if COMMON_STORAGE
+            var storageRoot = configuration["Storage:Root"];
+            if (string.IsNullOrWhiteSpace(storageRoot))
+            {
+                checks.Add(new("storage.portfolio", "Portfolio media storage", EngineeringDiagnosticStatus.Warning, "Storage:Root is not configured; Common.Storage would use the application-local data directory."));
+            }
+            else
+            {
+                try
+                {
+                    var storage = new LocalFileStorage(storageRoot);
+                    var health = await storage.CheckHealthAsync(cancellationToken);
+                    checks.Add(new(
+                        "storage.portfolio",
+                        "Portfolio media storage",
+                        health.Available && health.Writable ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.Failed,
+                        health.Available && health.Writable ? "Portfolio media storage is available and writable." : "Portfolio media storage is not ready.",
+                        health.Error));
+                }
+                catch (Exception ex)
+                {
+                    checks.Add(new("storage.portfolio", "Portfolio media storage", EngineeringDiagnosticStatus.Failed, "Portfolio storage health check threw an exception.", ex.GetType().Name));
+                }
+            }
+#else
+            checks.Add(new("storage.portfolio", "Portfolio media storage", EngineeringDiagnosticStatus.Warning, "Common.Storage is not compiled into this deployment."));
+#endif
 
             var enabledChannels = new[] { "Slack", "Teams", "Email", "Sms" }
                 .Where(name => configuration.GetValue($"Messaging:{name}:Enabled", false))
@@ -138,7 +182,7 @@ public sealed class EbolitoEngineeringDiagnostics(
                     "messaging.whatsapp-provider",
                     "WhatsApp provider",
                     EngineeringDiagnosticStatus.InterventionRequired,
-                    "WhatsApp is enabled in Ebolito configuration, but Common.Messaging does not yet contain a concrete WhatsApp provider."));
+                    "WhatsApp is enabled in Ebolito configuration, but the deployed Common.Messaging workspace must include its concrete WhatsApp provider before Ebolito can advertise it as available."));
             }
         }
 
@@ -153,6 +197,13 @@ public sealed class EbolitoEngineeringDiagnostics(
                 "Engagement action signing credential",
                 string.IsNullOrWhiteSpace(actionKey) ? EngineeringDiagnosticStatus.InterventionRequired : EngineeringDiagnosticStatus.Passed,
                 string.IsNullOrWhiteSpace(actionKey) ? "EBOLITO_ENGAGEMENT_ACTION_KEY is missing." : "Engagement action links have a signing credential."));
+
+            var profileAdminKey = Environment.GetEnvironmentVariable("EBOLITO_PROFILE_ADMIN_KEY");
+            checks.Add(new(
+                "security.profile-admin-key",
+                "Professional administration credential",
+                string.IsNullOrWhiteSpace(profileAdminKey) ? EngineeringDiagnosticStatus.InterventionRequired : EngineeringDiagnosticStatus.Passed,
+                string.IsNullOrWhiteSpace(profileAdminKey) ? "EBOLITO_PROFILE_ADMIN_KEY is missing." : "Professional administration endpoints have a machine credential."));
         }
 
         var status = Aggregate(checks);
