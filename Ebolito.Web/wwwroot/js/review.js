@@ -19,10 +19,12 @@ async function loadEngagement() {
     return;
   }
 
-  const response = await fetch(`/api/engagements/${encodeURIComponent(engagementId)}`);
+  const response = await fetch(`/api/engagements/${encodeURIComponent(engagementId)}`, {
+    headers: { 'X-Ebolito-Customer-Session': sessionToken }
+  });
   const engagement = await readJson(response);
   if (!response.ok) {
-    setSummary('The engagement could not be found.');
+    setSummary(response.status === 401 ? 'Your verified customer session is not authorized for this engagement.' : 'The engagement could not be found.');
     return;
   }
 
