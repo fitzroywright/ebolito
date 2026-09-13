@@ -1,6 +1,7 @@
 using Ebolito.Application;
 using Ebolito.Domain;
 using Ebolito.Infrastructure;
+using Ebolito.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,21 +22,23 @@ builder.Services.AddSingleton<IMobileVerificationSender>(builder.Environment.IsD
     ? new DevelopmentMobileVerificationSender()
     : new DisabledMobileVerificationSender());
 builder.Services.AddSingleton<ICustomerIdentityService, CustomerIdentityService>();
+builder.Services.AddSingleton<EbolitoEngineeringDiagnostics>();
+builder.Services.AddHttpClient();
+builder.Services.AddHostedService<ConfigurationRegistrationHostedService>();
 
 var app = builder.Build();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/health/live", () => Results.Ok(new { status = "live" }));
-app.MapGet("/health/ready", async (IMarketplaceStore store, CancellationToken ct) =>
+async Task<IResult> ReadyResult(IMarketplaceStore store, CancellationToken ct)
 {
     if (store is PostgresMarketplaceStore postgres)
     {
         try
         {
             return await postgres.CanConnectAsync(ct)
-                ? Results.Ok(new { status = "ready", store = "postgresql" })
+                ? Results.Ok(new { status = "ready", store = "postgresql", application = "Ebolito" })
                 : Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
         catch
@@ -44,8 +47,12 @@ app.MapGet("/health/ready", async (IMarketplaceStore store, CancellationToken ct
         }
     }
 
-    return Results.Ok(new { status = "ready", store = "memory" });
-});
+    return Results.Ok(new { status = "ready", store = "memory", application = "Ebolito" });
+}
+
+app.MapGet("/health/live", () => Results.Ok(new { status = "live", application = "Ebolito" }));
+app.MapGet("/health/ready", ReadyResult);
+app.MapGet("/health", ReadyResult);
 
 app.MapGet("/api/skills", async (IMarketplaceStore store, CancellationToken ct) =>
     Results.Ok(await store.GetSkillsAsync(ct)));
@@ -120,6 +127,30 @@ app.MapGet("/api/engagements/{id:guid}", async (Guid id, IMarketplaceStore store
 {
     var engagement = await store.GetEngagementAsync(id, ct);
     return engagement is null ? Results.NotFound() : Results.Ok(engagement);
+});
+
+app.MapPost("/api/engineering/diagnostics/run", async (HttpRequest httpRequest, EngineeringDiagnosticRunRequest request, EbolitoEngineeringDiagnostics diagnostics, CancellationToken ct) =>
+{
+    if (!EbolitoEngineeringDiagnostics.IsAuthorized(httpRequest)) return Results.Unauthorized();
+    return Results.Ok(await diagnostics.RunAsync(request, "Aegis.Diagnostics", ct));
+});
+
+app.MapGet("/api/engineering/diagnostics/runs", (HttpRequest request, EbolitoEngineeringDiagnostics diagnostics) =>
+    EbolitoEngineeringDiagnostics.IsAuthorized(request) ? Results.Ok(diagnostics.GetRecent()) : Results.Unauthorized());
+
+app.MapGet("/api/engineering/diagnostics/runs/{runId:guid}", (Guid runId, HttpRequest request, EbolitoEngineeringDiagnostics diagnostics) =>
+{
+    if (!EbolitoEngineeringDiagnostics.IsAuthorized(request)) return Results.Unauthorized();
+    var run = diagnostics.Get(runId);
+    return run is null ? Results.NotFound() : Results.Ok(run);
+});
+
+app.MapPost("/api/engineering/diagnostics/runs/{runId:guid}/resolve", (Guid runId, HttpRequest request, EngineeringDiagnosticResolutionRequest resolution, EbolitoEngineeringDiagnostics diagnostics) =>
+{
+    if (!EbolitoEngineeringDiagnostics.IsAuthorized(request)) return Results.Unauthorized();
+    if (string.IsNullOrWhiteSpace(resolution.Resolution)) return Results.BadRequest(new { error = "Resolution is required." });
+    var run = diagnostics.Resolve(runId, "Aegis.Diagnostics", resolution.Resolution.Trim());
+    return run is null ? Results.NotFound() : Results.Ok(run);
 });
 
 app.MapFallbackToFile("index.html");
