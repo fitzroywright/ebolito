@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en" data-theme="modern">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ebolito Professional Screening</title>
+  <link rel="stylesheet" href="/css/site.css">
+  <style>
+    .shell{max-width:1180px;margin:30px auto;padding:0 20px}.toolbar,.card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:18px;margin-bottom:16px}.grid{display:grid;grid-template-columns:1fr 220px;gap:12px}.list{display:grid;gap:14px}.meta{display:flex;gap:12px;flex-wrap:wrap;color:#555}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.skills{font-family:monospace;font-size:.85rem}.badge{display:inline-block;border:1px solid #aaa;border-radius:999px;padding:3px 8px;font-size:.8rem}@media(max-width:760px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <h1>Professional Screening</h1>
+    <p>This is an administrative commissioning surface. Professional sessions cannot approve, unscreen, deactivate, or reactivate accounts.</p>
+    <section class="toolbar">
+      <div class="grid">
+        <label>Administration key<input data-admin-key type="password" autocomplete="current-password"></label>
+        <label>View<select data-filter><option value="pending">Pending screening</option><option value="screened">Screened</option><option value="inactive">Inactive</option><option value="all">All</option></select></label>
+      </div>
+      <div class="actions"><button type="button" data-load>Load professionals</button><a href="/">Marketplace</a></div>
+      <p data-status></p>
+    </section>
+    <section class="list" data-list><div class="card">Enter the administration key to load pending professionals.</div></section>
+  </main>
+  <script src="/js/screening.js"></script>
+</body>
+</html>
