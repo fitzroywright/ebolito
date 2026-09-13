@@ -2,31 +2,9 @@ using Ebolito.Domain;
 
 namespace Ebolito.Application;
 
-public sealed record ProfessionalCard(
-    Guid Id,
-    string Slug,
-    string DisplayName,
-    string Headline,
-    string Location,
-    double Rating,
-    int ReviewCount,
-    bool IsScreened);
-
-public sealed record ProfessionalProfile(
-    Professional Professional,
-    IReadOnlyCollection<Skill> Skills,
-    IReadOnlyCollection<PortfolioProject> Projects,
-    IReadOnlyCollection<Review> Reviews,
-    double Rating);
-
-public sealed record EngagementRequest(
-    Guid ProfessionalId,
-    Guid CustomerId,
-    Guid? SkillId,
-    string RequestText,
-    string Location,
-    EngagementChannel CustomerPreferredContactChannel = EngagementChannel.WhatsApp);
-
+public sealed record ProfessionalCard(Guid Id, string Slug, string DisplayName, string Headline, string Location, double Rating, int ReviewCount, bool IsScreened);
+public sealed record ProfessionalProfile(Professional Professional, IReadOnlyCollection<Skill> Skills, IReadOnlyCollection<PortfolioProject> Projects, IReadOnlyCollection<Review> Reviews, double Rating);
+public sealed record EngagementRequest(Guid ProfessionalId, Guid CustomerId, Guid? SkillId, string RequestText, string Location, EngagementChannel CustomerPreferredContactChannel = EngagementChannel.WhatsApp);
 public enum EngagementResponse { Accept, Decline }
 
 public interface IMarketplaceStore
@@ -50,14 +28,7 @@ public interface IMarketplaceStore
 
 public interface IEngagementNotifier
 {
-    Task<EngagementChannel> DeliverAsync(
-        Professional professional,
-        CustomerIdentity customer,
-        Engagement engagement,
-        ProfessionalNotificationPolicy policy,
-        IReadOnlyCollection<EngagementDeliveryAttempt> previousAttempts,
-        CancellationToken cancellationToken = default);
-
+    Task<EngagementChannel?> DeliverAsync(Professional professional, CustomerIdentity customer, Engagement engagement, ProfessionalNotificationPolicy policy, IReadOnlyCollection<EngagementDeliveryAttempt> previousAttempts, CancellationToken cancellationToken = default);
     Task NotifyCustomerAsync(CustomerIdentity customer, Professional professional, Engagement engagement, CancellationToken cancellationToken = default);
 }
 
@@ -77,94 +48,53 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
         var professionals = await store.GetProfessionalsAsync(cancellationToken);
         var skills = await store.GetSkillsAsync(cancellationToken);
         var skillLookup = skills.ToDictionary(x => x.Id);
-        var serviceTerm = service?.Trim();
-        var locationTerm = location?.Trim();
-
         var results = new List<ProfessionalCard>();
+
         foreach (var professional in professionals.Where(x => x.IsActive))
         {
-            if (!string.IsNullOrWhiteSpace(serviceTerm))
+            if (!string.IsNullOrWhiteSpace(service))
             {
-                var matchesSkill = professional.SkillIds
-                    .Where(skillLookup.ContainsKey)
-                    .Select(id => skillLookup[id])
-                    .Any(skill => skill.Name.Contains(serviceTerm, StringComparison.OrdinalIgnoreCase)
-                        || skill.Synonyms.Any(s => s.Contains(serviceTerm, StringComparison.OrdinalIgnoreCase)));
-                if (!matchesSkill) continue;
+                var term = service.Trim();
+                var match = professional.SkillIds.Where(skillLookup.ContainsKey).Select(id => skillLookup[id]).Any(skill => skill.Name.Contains(term, StringComparison.OrdinalIgnoreCase) || skill.Synonyms.Any(s => s.Contains(term, StringComparison.OrdinalIgnoreCase)));
+                if (!match) continue;
             }
-
-            if (!string.IsNullOrWhiteSpace(locationTerm)
-                && !professional.ServiceAreas.Any(area => area.ToString().Contains(locationTerm, StringComparison.OrdinalIgnoreCase)))
-                continue;
-
+            if (!string.IsNullOrWhiteSpace(location) && !professional.ServiceAreas.Any(area => area.ToString().Contains(location.Trim(), StringComparison.OrdinalIgnoreCase))) continue;
             var reviews = await store.GetReviewsAsync(professional.Id, cancellationToken);
-            results.Add(new ProfessionalCard(
-                professional.Id,
-                professional.Slug,
-                professional.DisplayName,
-                professional.Headline,
-                professional.ServiceAreas.FirstOrDefault()?.ToString() ?? "Jamaica",
-                reviews.Count == 0 ? 0 : Math.Round(reviews.Average(x => x.Rating), 1),
-                reviews.Count,
-                professional.IsScreened));
+            results.Add(new ProfessionalCard(professional.Id, professional.Slug, professional.DisplayName, professional.Headline, professional.ServiceAreas.FirstOrDefault()?.ToString() ?? "Jamaica", reviews.Count == 0 ? 0 : Math.Round(reviews.Average(x => x.Rating), 1), reviews.Count, professional.IsScreened));
         }
 
-        return results
-            .OrderByDescending(x => x.IsScreened)
-            .ThenByDescending(x => x.Rating)
-            .ThenBy(x => x.DisplayName)
-            .ToArray();
+        return results.OrderByDescending(x => x.IsScreened).ThenByDescending(x => x.Rating).ThenBy(x => x.DisplayName).ToArray();
     }
 
     public async Task<ProfessionalProfile?> GetProfileAsync(string slug, CancellationToken cancellationToken = default)
     {
         var professional = await store.GetProfessionalBySlugAsync(slug, cancellationToken);
         if (professional is null || !professional.IsActive) return null;
-
         var skills = (await store.GetSkillsAsync(cancellationToken)).Where(x => professional.SkillIds.Contains(x.Id)).ToArray();
         var projects = await store.GetProjectsAsync(professional.Id, cancellationToken);
         var reviews = await store.GetReviewsAsync(professional.Id, cancellationToken);
-        var rating = reviews.Count == 0 ? 0 : Math.Round(reviews.Average(x => x.Rating), 1);
-        return new ProfessionalProfile(professional, skills, projects, reviews, rating);
+        return new ProfessionalProfile(professional, skills, projects, reviews, reviews.Count == 0 ? 0 : Math.Round(reviews.Average(x => x.Rating), 1));
     }
 
     public async Task<Engagement> RequestEngagementAsync(EngagementRequest request, CancellationToken cancellationToken = default)
     {
-        var professional = await store.GetProfessionalAsync(request.ProfessionalId, cancellationToken)
-            ?? throw new InvalidOperationException("Professional not found.");
-        var customer = await store.GetCustomerAsync(request.CustomerId, cancellationToken)
-            ?? throw new InvalidOperationException("Verified customer identity is required before an engagement can be sent.");
-
+        var professional = await store.GetProfessionalAsync(request.ProfessionalId, cancellationToken) ?? throw new InvalidOperationException("Professional not found.");
+        var customer = await store.GetCustomerAsync(request.CustomerId, cancellationToken) ?? throw new InvalidOperationException("Verified customer identity is required before an engagement can be sent.");
         if (string.IsNullOrWhiteSpace(request.RequestText)) throw new ArgumentException("Request text is required.", nameof(request));
         if (string.IsNullOrWhiteSpace(request.Location)) throw new ArgumentException("Location is required.", nameof(request));
 
-        var engagement = new Engagement
-        {
-            ProfessionalId = professional.Id,
-            CustomerId = customer.Id,
-            SkillId = request.SkillId,
-            RequestText = request.RequestText.Trim(),
-            Location = request.Location.Trim(),
-            RequestedChannel = request.CustomerPreferredContactChannel
-        };
-
+        var engagement = new Engagement { ProfessionalId = professional.Id, CustomerId = customer.Id, SkillId = request.SkillId, RequestText = request.RequestText.Trim(), Location = request.Location.Trim(), RequestedChannel = request.CustomerPreferredContactChannel };
         await store.SaveEngagementAsync(engagement, cancellationToken);
-        await DeliverAndRecordAsync(professional, customer, engagement, cancellationToken);
+        if (!await DeliverAndRecordAsync(professional, customer, engagement, cancellationToken)) throw new InvalidOperationException("No configured notification channel can reach this professional.");
         return engagement;
     }
 
     public async Task<Engagement> RespondToEngagementAsync(Guid engagementId, EngagementResponse response, CancellationToken cancellationToken = default)
     {
-        var engagement = await store.GetEngagementAsync(engagementId, cancellationToken)
-            ?? throw new InvalidOperationException("Engagement not found.");
-        var professional = await store.GetProfessionalAsync(engagement.ProfessionalId, cancellationToken)
-            ?? throw new InvalidOperationException("Professional not found.");
-        var customer = await store.GetCustomerAsync(engagement.CustomerId, cancellationToken)
-            ?? throw new InvalidOperationException("Customer not found.");
-
-        if (response == EngagementResponse.Accept) engagement.Accept();
-        else engagement.Decline();
-
+        var engagement = await store.GetEngagementAsync(engagementId, cancellationToken) ?? throw new InvalidOperationException("Engagement not found.");
+        var professional = await store.GetProfessionalAsync(engagement.ProfessionalId, cancellationToken) ?? throw new InvalidOperationException("Professional not found.");
+        var customer = await store.GetCustomerAsync(engagement.CustomerId, cancellationToken) ?? throw new InvalidOperationException("Customer not found.");
+        if (response == EngagementResponse.Accept) engagement.Accept(); else engagement.Decline();
         await store.SaveEngagementAsync(engagement, cancellationToken);
         await notifier.NotifyCustomerAsync(customer, professional, engagement, cancellationToken);
         return engagement;
@@ -174,26 +104,21 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
     {
         var engagement = await store.GetEngagementAsync(engagementId, cancellationToken);
         if (engagement is null || engagement.Status != EngagementStatus.Delivered) return false;
-
         var professional = await store.GetProfessionalAsync(engagement.ProfessionalId, cancellationToken);
         var customer = await store.GetCustomerAsync(engagement.CustomerId, cancellationToken);
-        if (professional is null || customer is null) return false;
-
-        var before = engagement.DeliveredChannel;
-        await DeliverAndRecordAsync(professional, customer, engagement, cancellationToken);
-        return engagement.DeliveredChannel != before;
+        return professional is not null && customer is not null && await DeliverAndRecordAsync(professional, customer, engagement, cancellationToken);
     }
 
-    private async Task DeliverAndRecordAsync(Professional professional, CustomerIdentity customer, Engagement engagement, CancellationToken cancellationToken)
+    private async Task<bool> DeliverAndRecordAsync(Professional professional, CustomerIdentity customer, Engagement engagement, CancellationToken cancellationToken)
     {
         var policy = await store.GetNotificationPolicyAsync(professional.Id, cancellationToken);
         var attempts = await store.GetDeliveryAttemptsAsync(engagement.Id, cancellationToken);
         var deliveredChannel = await notifier.DeliverAsync(professional, customer, engagement, policy, attempts, cancellationToken);
+        if (deliveredChannel is null) return false;
 
-        await store.SaveDeliveryAttemptAsync(new EngagementDeliveryAttempt(
-            Guid.NewGuid(), engagement.Id, deliveredChannel, DateTimeOffset.UtcNow, true, "Delivered by configured channel router."), cancellationToken);
-
-        engagement.RecordDelivery(deliveredChannel);
+        await store.SaveDeliveryAttemptAsync(new EngagementDeliveryAttempt(Guid.NewGuid(), engagement.Id, deliveredChannel.Value, DateTimeOffset.UtcNow, true, "Delivered by configured channel router."), cancellationToken);
+        engagement.RecordDelivery(deliveredChannel.Value);
         await store.SaveEngagementAsync(engagement, cancellationToken);
+        return true;
     }
 }
