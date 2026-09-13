@@ -1,6 +1,7 @@
 using Ebolito.Application;
 using Ebolito.Domain;
 using Ebolito.Infrastructure;
+using Xunit;
 
 namespace Ebolito.Tests;
 
