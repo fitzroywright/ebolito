@@ -51,13 +51,14 @@ public sealed class EbolitoEngineeringDiagnostics(
     public async Task<EngineeringDiagnosticRun> RunAsync(EngineeringDiagnosticRunRequest request, string requestedBy, CancellationToken cancellationToken)
     {
         var started = DateTimeOffset.UtcNow;
+        var level = (int)request.Level;
         var checks = new List<EngineeringDiagnosticCheckResult>
         {
             new("app.process", "Application process", EngineeringDiagnosticStatus.Passed, "Ebolito process is running and accepted a diagnostics request."),
             new("store.mode", "Marketplace store", EngineeringDiagnosticStatus.Passed, marketplaceStore is PostgresMarketplaceStore ? "PostgreSQL marketplace store is configured." : "In-memory development marketplace store is active.", marketplaceStore.GetType().Name)
         };
 
-        if (request.Level <= EngineeringDiagnosticLevel.Level4Analysis)
+        if (level <= 4)
         {
             if (marketplaceStore is PostgresMarketplaceStore postgres)
             {
@@ -77,7 +78,7 @@ public sealed class EbolitoEngineeringDiagnostics(
             }
         }
 
-        if (request.Level <= EngineeringDiagnosticLevel.Level3Verification)
+        if (level <= 3)
         {
             try
             {
@@ -91,7 +92,7 @@ public sealed class EbolitoEngineeringDiagnostics(
             }
         }
 
-        if (request.Level <= EngineeringDiagnosticLevel.Level2Repair)
+        if (level <= 2)
         {
             var configurationUrl = configuration["Aegis:Configuration:Url"];
             checks.Add(new("configuration.registration", "Aegis.Configuration registration", string.IsNullOrWhiteSpace(configurationUrl) ? EngineeringDiagnosticStatus.Warning : EngineeringDiagnosticStatus.Passed, string.IsNullOrWhiteSpace(configurationUrl) ? "Aegis.Configuration URL is not configured; self-registration is disabled." : "Aegis.Configuration URL is configured for best-effort self-registration."));
@@ -100,7 +101,7 @@ public sealed class EbolitoEngineeringDiagnostics(
             checks.Add(new("messaging.verification", "Mobile verification delivery", verificationReady ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.InterventionRequired, verificationReady ? "Mobile verification has an available delivery mode." : "Production mobile verification is intentionally disabled until Common.Messaging/SMS is configured."));
         }
 
-        if (request.Level <= EngineeringDiagnosticLevel.Level1CriticalIntervention)
+        if (level <= 1)
         {
             var diagnosticsKeyPresent = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("EBOLITO_DIAGNOSTICS_KEY"));
             checks.Add(new("security.diagnostics-key", "Diagnostics machine credential", diagnosticsKeyPresent ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.InterventionRequired, diagnosticsKeyPresent ? "EBOLITO_DIAGNOSTICS_KEY is configured." : "EBOLITO_DIAGNOSTICS_KEY is missing."));
