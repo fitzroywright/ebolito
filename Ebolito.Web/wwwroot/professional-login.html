@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="modern">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ebolito Professional Sign In</title>
+  <link rel="stylesheet" href="/css/site.css">
+  <style>
+    .auth-shell{max-width:620px;margin:48px auto;padding:0 20px}.auth-card{background:#fff;border:1px solid #ddd;border-radius:14px;padding:24px}.auth-card label{display:block;margin:14px 0}.auth-card input{width:100%;box-sizing:border-box;padding:10px}.auth-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.muted{color:#666}.status{min-height:1.5em}
+  </style>
+</head>
+<body>
+  <main class="auth-shell">
+    <h1>Professional Sign In</h1>
+    <p class="muted">Use the mobile number already registered on your Ebolito professional profile. A six-digit verification code will be sent to that number.</p>
+    <section class="auth-card">
+      <form data-start-form>
+        <label>Professional ID<input name="professionalId" required placeholder="Professional GUID"></label>
+        <button type="submit">Send verification code</button>
+        <p class="status" data-start-status></p>
+      </form>
+      <form data-complete-form hidden>
+        <input type="hidden" name="challengeId">
+        <label>Verification code<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></label>
+        <button type="submit">Sign in</button>
+        <p class="status" data-complete-status></p>
+      </form>
+      <div class="auth-actions"><a href="/inbox.html">Inbox</a><a href="/manage.html">Profile</a><a href="/messaging.html">Messaging</a><a href="/">Marketplace</a></div>
+    </section>
+  </main>
+  <script src="/js/professional-login.js"></script>
+</body>
+</html>
