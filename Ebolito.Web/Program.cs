@@ -45,6 +45,7 @@ app.MapProfessionalNotificationPolicyEndpoints();
 app.MapVerifiedReviewEndpoints();
 app.MapEngagementManagementEndpoints();
 app.MapProfessionalInboxEndpoints();
+app.MapCustomerEngagementEndpoints();
 
 async Task<IResult> ReadyResult(IMarketplaceStore store, CancellationToken ct)
 {
