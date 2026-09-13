@@ -39,6 +39,50 @@ public sealed class MarketplaceTests
     }
 
     [Fact]
+    public async Task ProfessionalEdit_ImmediatelyChangesPublicSearch()
+    {
+        var store = new InMemoryMarketplaceStore();
+        var service = new MarketplaceService(store, new FallbackEngagementNotifier());
+        var marcus = (await store.GetProfessionalsAsync()).Single(x => x.DisplayName == "Marcus Brown");
+        var plumbing = (await store.GetSkillsAsync()).Single(x => x.Name == "Plumbing");
+
+        await store.SaveProfessionalAsync(marcus with
+        {
+            DisplayName = "Marcus Brown Services",
+            Headline = "Plumbing and emergency repairs",
+            SkillIds = [plumbing.Id],
+            ServiceAreas = [new ServiceArea("Kingston")]
+        });
+
+        var results = await service.SearchAsync("plumber", "Kingston");
+        Assert.Contains(results, x => x.Id == marcus.Id && x.DisplayName == "Marcus Brown Services");
+    }
+
+    [Fact]
+    public async Task PortfolioProject_CanBeAddedAndRemoved()
+    {
+        var store = new InMemoryMarketplaceStore();
+        var professional = (await store.GetProfessionalsAsync()).First();
+        var skill = (await store.GetSkillsAsync()).First();
+        var project = new PortfolioProject(
+            Guid.NewGuid(),
+            professional.Id,
+            "Before and After Bathroom",
+            "Full fixture replacement and pipe repair.",
+            "Kingston",
+            DateOnly.FromDateTime(DateTime.UtcNow),
+            [skill.Id],
+            [new PortfolioPhoto(Guid.NewGuid(), "/portfolio/bathroom-after.jpg", "After", 1)],
+            true);
+
+        await store.SavePortfolioProjectAsync(project);
+        Assert.Contains(await store.GetProjectsAsync(professional.Id), x => x.Id == project.Id);
+
+        Assert.True(await store.DeletePortfolioProjectAsync(professional.Id, project.Id));
+        Assert.DoesNotContain(await store.GetProjectsAsync(professional.Id), x => x.Id == project.Id);
+    }
+
+    [Fact]
     public async Task Engagement_RequiresKnownVerifiedCustomer()
     {
         var store = new InMemoryMarketplaceStore();
@@ -135,7 +179,6 @@ public sealed class MarketplaceTests
         };
 
         var next = await notifier.DeliverAsync(professional, customer, engagement, policy, attempts);
-
         Assert.Null(next);
     }
 
