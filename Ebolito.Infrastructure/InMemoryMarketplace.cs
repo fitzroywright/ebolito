@@ -10,7 +10,7 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
     private readonly IReadOnlyCollection<Professional> _professionals;
     private readonly IReadOnlyCollection<PortfolioProject> _projects;
     private readonly IReadOnlyCollection<Review> _reviews;
-    private readonly IReadOnlyCollection<CustomerIdentity> _customers;
+    private readonly ConcurrentDictionary<Guid, CustomerIdentity> _customers = new();
     private readonly ConcurrentDictionary<Guid, Engagement> _engagements = new();
 
     public InMemoryMarketplaceStore()
@@ -40,10 +40,8 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
             new Review(Guid.NewGuid(), marcusId, null, "A. Grant", 5, "Excellent workmanship and communication.", DateTimeOffset.UtcNow.AddDays(-18), false)
         ];
 
-        _customers =
-        [
-            new CustomerIdentity(Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), "Demo Customer", "+18765550999", "customer@example.com")
-        ];
+        var demoCustomer = new CustomerIdentity(Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), "Demo Customer", "+18765550999", "customer@example.com");
+        _customers[demoCustomer.Id] = demoCustomer;
     }
 
     public Task<IReadOnlyCollection<Skill>> GetSkillsAsync(CancellationToken cancellationToken = default) => Task.FromResult(_skills);
@@ -52,7 +50,9 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
     public Task<Professional?> GetProfessionalBySlugAsync(string slug, CancellationToken cancellationToken = default) => Task.FromResult(_professionals.FirstOrDefault(x => x.Slug.Equals(slug, StringComparison.OrdinalIgnoreCase)));
     public Task<IReadOnlyCollection<PortfolioProject>> GetProjectsAsync(Guid professionalId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<PortfolioProject>>(_projects.Where(x => x.ProfessionalId == professionalId).OrderByDescending(x => x.IsFeatured).ThenByDescending(x => x.CompletedOn).ToArray());
     public Task<IReadOnlyCollection<Review>> GetReviewsAsync(Guid professionalId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<Review>>(_reviews.Where(x => x.ProfessionalId == professionalId).OrderByDescending(x => x.CreatedAt).ToArray());
-    public Task<CustomerIdentity?> GetCustomerAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_customers.FirstOrDefault(x => x.Id == id));
+    public Task<CustomerIdentity?> GetCustomerAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_customers.TryGetValue(id, out var value) ? value : null);
+    public Task<CustomerIdentity?> GetCustomerByMobileAsync(string mobileNumber, CancellationToken cancellationToken = default) => Task.FromResult(_customers.Values.FirstOrDefault(x => x.VerifiedMobileNumber.Equals(mobileNumber, StringComparison.OrdinalIgnoreCase)));
+    public Task SaveCustomerAsync(CustomerIdentity customer, CancellationToken cancellationToken = default) { _customers[customer.Id] = customer; return Task.CompletedTask; }
     public Task SaveEngagementAsync(Engagement engagement, CancellationToken cancellationToken = default) { _engagements[engagement.Id] = engagement; return Task.CompletedTask; }
     public Task<Engagement?> GetEngagementAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_engagements.TryGetValue(id, out var value) ? value : null);
 }
@@ -61,8 +61,6 @@ public sealed class FallbackEngagementNotifier : IEngagementNotifier
 {
     public Task<EngagementChannel> DeliverAsync(Professional professional, CustomerIdentity customer, Engagement engagement, CancellationToken cancellationToken = default)
     {
-        // Production adapters will route through Common.Messaging and external WhatsApp/SMS providers.
-        // Until those adapters are configured, preserve the intended fallback semantics deterministically.
         var channel = engagement.RequestedChannel switch
         {
             EngagementChannel.WhatsApp when !string.IsNullOrWhiteSpace(professional.WhatsAppNumber) => EngagementChannel.WhatsApp,
@@ -73,11 +71,5 @@ public sealed class FallbackEngagementNotifier : IEngagementNotifier
         return Task.FromResult(channel);
     }
 
-    public Task NotifyCustomerAsync(CustomerIdentity customer, Professional professional, Engagement engagement, CancellationToken cancellationToken = default)
-    {
-        // Common.Messaging will own the production delivery. Keeping this as an adapter boundary
-        // lets Ebolito notify the customer when a professional accepts/declines without coupling
-        // the domain to Twilio, Meta/WhatsApp, email, Slack, or any other provider.
-        return Task.CompletedTask;
-    }
+    public Task NotifyCustomerAsync(CustomerIdentity customer, Professional professional, Engagement engagement, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
