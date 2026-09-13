@@ -75,7 +75,7 @@ public static partial class ProfessionalSiteManagementEndpoints
             {
                 ValidateProject(update);
                 await ValidateSkillIdsAsync(update.SkillIds, store, ct);
-                var projectId = update.Id is null or { } value when value == Guid.Empty ? Guid.NewGuid() : update.Id.Value;
+                var projectId = update.Id is null || update.Id.Value == Guid.Empty ? Guid.NewGuid() : update.Id.Value;
                 var project = new PortfolioProject(
                     projectId,
                     id,
