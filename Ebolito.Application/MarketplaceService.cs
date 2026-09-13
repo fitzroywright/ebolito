@@ -38,6 +38,8 @@ public interface IMarketplaceStore
     Task<IReadOnlyCollection<PortfolioProject>> GetProjectsAsync(Guid professionalId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Review>> GetReviewsAsync(Guid professionalId, CancellationToken cancellationToken = default);
     Task<CustomerIdentity?> GetCustomerAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<CustomerIdentity?> GetCustomerByMobileAsync(string mobileNumber, CancellationToken cancellationToken = default);
+    Task SaveCustomerAsync(CustomerIdentity customer, CancellationToken cancellationToken = default);
     Task SaveEngagementAsync(Engagement engagement, CancellationToken cancellationToken = default);
     Task<Engagement?> GetEngagementAsync(Guid id, CancellationToken cancellationToken = default);
 }
