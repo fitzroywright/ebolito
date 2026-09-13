@@ -7,8 +7,8 @@ namespace Ebolito.Infrastructure;
 public sealed class InMemoryMarketplaceStore : IMarketplaceStore
 {
     private readonly IReadOnlyCollection<Skill> _skills;
-    private readonly IReadOnlyCollection<Professional> _professionals;
-    private readonly IReadOnlyCollection<PortfolioProject> _projects;
+    private readonly ConcurrentDictionary<Guid, Professional> _professionals = new();
+    private readonly ConcurrentDictionary<Guid, PortfolioProject> _projects = new();
     private readonly IReadOnlyCollection<Review> _reviews;
     private readonly ConcurrentDictionary<Guid, CustomerIdentity> _customers = new();
     private readonly ConcurrentDictionary<Guid, Engagement> _engagements = new();
@@ -24,11 +24,8 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
 
         var beverlyId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         var marcusId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
-        _professionals =
-        [
-            new Professional(beverlyId, "beverly-hyman", "Beverly Hyman", "Hyman Plumbing Services", "Reliable plumbing for homes and businesses", "Experienced plumber serving Kingston and St. Andrew. Repairs, installations and emergency work.", "+18765550101", "+18765550101", [plumbing.Id], [new ServiceArea("Kingston"), new ServiceArea("St. Andrew")], true),
-            new Professional(marcusId, "marcus-brown", "Marcus Brown", "Brown Custom Woodwork", "Custom kitchens, cabinetry and furniture", "Custom carpentry focused on durable, practical work and clean finishes.", "+18765550102", "+18765550102", [carpentry.Id], [new ServiceArea("St. Catherine", "Spanish Town"), new ServiceArea("Kingston")], true)
-        ];
+        _professionals[beverlyId] = new Professional(beverlyId, "beverly-hyman", "Beverly Hyman", "Hyman Plumbing Services", "Reliable plumbing for homes and businesses", "Experienced plumber serving Kingston and St. Andrew. Repairs, installations and emergency work.", "+18765550101", "+18765550101", [plumbing.Id], [new ServiceArea("Kingston"), new ServiceArea("St. Andrew")], true);
+        _professionals[marcusId] = new Professional(marcusId, "marcus-brown", "Marcus Brown", "Brown Custom Woodwork", "Custom kitchens, cabinetry and furniture", "Custom carpentry focused on durable, practical work and clean finishes.", "+18765550102", "+18765550102", [carpentry.Id], [new ServiceArea("St. Catherine", "Spanish Town"), new ServiceArea("Kingston")], true);
 
         _notificationPolicies[beverlyId] = new ProfessionalNotificationPolicy(
             beverlyId,
@@ -56,11 +53,10 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
                 new NotificationEndpoint(EngagementChannel.Sms, "+18765550102", "Marcus mobile")
             ]);
 
-        _projects =
-        [
-            new PortfolioProject(Guid.NewGuid(), beverlyId, "Kitchen Pipe Repair", "Replaced damaged supply lines and restored the kitchen sink installation.", "Kingston", DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), [plumbing.Id], [new PortfolioPhoto(Guid.NewGuid(), "/images/demo/plumbing-1.jpg", "Completed kitchen plumbing")], true),
-            new PortfolioProject(Guid.NewGuid(), marcusId, "Modern Kitchen Cabinets", "Built and installed a full custom cabinet set with island storage.", "Spanish Town", DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-4)), [carpentry.Id], [new PortfolioPhoto(Guid.NewGuid(), "/images/demo/carpentry-1.jpg", "Custom kitchen cabinetry")], true)
-        ];
+        var beverlyProject = new PortfolioProject(Guid.NewGuid(), beverlyId, "Kitchen Pipe Repair", "Replaced damaged supply lines and restored the kitchen sink installation.", "Kingston", DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), [plumbing.Id], [new PortfolioPhoto(Guid.NewGuid(), "/images/demo/plumbing-1.jpg", "Completed kitchen plumbing")], true);
+        var marcusProject = new PortfolioProject(Guid.NewGuid(), marcusId, "Modern Kitchen Cabinets", "Built and installed a full custom cabinet set with island storage.", "Spanish Town", DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-4)), [carpentry.Id], [new PortfolioPhoto(Guid.NewGuid(), "/images/demo/carpentry-1.jpg", "Custom kitchen cabinetry")], true);
+        _projects[beverlyProject.Id] = beverlyProject;
+        _projects[marcusProject.Id] = marcusProject;
 
         _reviews =
         [
@@ -73,10 +69,13 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
     }
 
     public Task<IReadOnlyCollection<Skill>> GetSkillsAsync(CancellationToken cancellationToken = default) => Task.FromResult(_skills);
-    public Task<IReadOnlyCollection<Professional>> GetProfessionalsAsync(CancellationToken cancellationToken = default) => Task.FromResult(_professionals);
-    public Task<Professional?> GetProfessionalAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_professionals.FirstOrDefault(x => x.Id == id));
-    public Task<Professional?> GetProfessionalBySlugAsync(string slug, CancellationToken cancellationToken = default) => Task.FromResult(_professionals.FirstOrDefault(x => x.Slug.Equals(slug, StringComparison.OrdinalIgnoreCase)));
-    public Task<IReadOnlyCollection<PortfolioProject>> GetProjectsAsync(Guid professionalId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<PortfolioProject>>(_projects.Where(x => x.ProfessionalId == professionalId).OrderByDescending(x => x.IsFeatured).ThenByDescending(x => x.CompletedOn).ToArray());
+    public Task<IReadOnlyCollection<Professional>> GetProfessionalsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<Professional>>(_professionals.Values.ToArray());
+    public Task<Professional?> GetProfessionalAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_professionals.TryGetValue(id, out var value) ? value : null);
+    public Task<Professional?> GetProfessionalBySlugAsync(string slug, CancellationToken cancellationToken = default) => Task.FromResult(_professionals.Values.FirstOrDefault(x => x.Slug.Equals(slug, StringComparison.OrdinalIgnoreCase)));
+    public Task SaveProfessionalAsync(Professional professional, CancellationToken cancellationToken = default) { _professionals[professional.Id] = professional; return Task.CompletedTask; }
+    public Task<IReadOnlyCollection<PortfolioProject>> GetProjectsAsync(Guid professionalId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<PortfolioProject>>(_projects.Values.Where(x => x.ProfessionalId == professionalId).OrderByDescending(x => x.IsFeatured).ThenByDescending(x => x.CompletedOn).ToArray());
+    public Task SavePortfolioProjectAsync(PortfolioProject project, CancellationToken cancellationToken = default) { _projects[project.Id] = project; return Task.CompletedTask; }
+    public Task<bool> DeletePortfolioProjectAsync(Guid professionalId, Guid projectId, CancellationToken cancellationToken = default) => Task.FromResult(_projects.TryGetValue(projectId, out var project) && project.ProfessionalId == professionalId && _projects.TryRemove(projectId, out _));
     public Task<IReadOnlyCollection<Review>> GetReviewsAsync(Guid professionalId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<Review>>(_reviews.Where(x => x.ProfessionalId == professionalId).OrderByDescending(x => x.CreatedAt).ToArray());
     public Task<CustomerIdentity?> GetCustomerAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_customers.TryGetValue(id, out var value) ? value : null);
     public Task<CustomerIdentity?> GetCustomerByMobileAsync(string mobileNumber, CancellationToken cancellationToken = default) => Task.FromResult(_customers.Values.FirstOrDefault(x => x.VerifiedMobileNumber.Equals(mobileNumber, StringComparison.OrdinalIgnoreCase)));
@@ -103,11 +102,8 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyCollection<EngagementDeliveryAttempt>> GetDeliveryAttemptsAsync(Guid engagementId, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult<IReadOnlyCollection<EngagementDeliveryAttempt>>(
-            _deliveryAttempts.TryGetValue(engagementId, out var attempts) ? attempts.ToArray() : []);
-    }
+    public Task<IReadOnlyCollection<EngagementDeliveryAttempt>> GetDeliveryAttemptsAsync(Guid engagementId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyCollection<EngagementDeliveryAttempt>>(_deliveryAttempts.TryGetValue(engagementId, out var attempts) ? attempts.ToArray() : []);
 }
 
 public sealed class FallbackEngagementNotifier : IEngagementNotifier
