@@ -1,4 +1,7 @@
-const state = { professionals: [] };
+const state = {
+  professionals: [],
+  customerId: localStorage.getItem('ebolito.customerId') || null
+};
 
 async function loadSkills() {
   const select = document.querySelector('[data-service]');
@@ -72,18 +75,86 @@ function openEngagement(professionalId, professionalName) {
   if (!dialog) return;
   dialog.querySelector('[name=professionalId]').value = professionalId;
   dialog.querySelector('[data-professional-name]').textContent = professionalName;
+  showIdentityState();
   dialog.showModal();
+}
+
+function showIdentityState() {
+  const start = document.querySelector('[data-identity-start]');
+  const complete = document.querySelector('[data-identity-complete]');
+  const engagement = document.querySelector('[data-engagement-form]');
+  if (!start || !complete || !engagement) return;
+  start.hidden = Boolean(state.customerId);
+  complete.hidden = true;
+  engagement.hidden = !state.customerId;
+}
+
+async function startIdentityVerification(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = form.querySelector('[data-identity-start-status]');
+  status.textContent = 'Sending code…';
+
+  const response = await fetch('/api/identity/mobile/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      displayName: form.displayName.value,
+      mobileNumber: form.mobileNumber.value,
+      email: form.email.value || null
+    })
+  });
+  const result = await readJson(response);
+  if (!response.ok) {
+    status.textContent = result.error || result.detail || 'Unable to send verification code.';
+    return;
+  }
+
+  document.querySelector('[data-identity-start]').hidden = true;
+  const complete = document.querySelector('[data-identity-complete]');
+  complete.hidden = false;
+  complete.querySelector('[name=challengeId]').value = result.id;
+  status.textContent = '';
+}
+
+async function completeIdentityVerification(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = form.querySelector('[data-identity-complete-status]');
+  status.textContent = 'Verifying…';
+
+  const response = await fetch('/api/identity/mobile/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challengeId: form.challengeId.value, code: form.code.value })
+  });
+  const result = await readJson(response);
+  if (!response.ok) {
+    status.textContent = result.error || 'Verification failed.';
+    return;
+  }
+
+  state.customerId = result.id;
+  localStorage.setItem('ebolito.customerId', result.id);
+  document.querySelector('[data-identity-complete]').hidden = true;
+  document.querySelector('[data-engagement-form]').hidden = false;
+  status.textContent = '';
 }
 
 async function submitEngagement(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const status = form.querySelector('[data-engagement-status]');
-  status.textContent = 'Sending…';
+  if (!state.customerId) {
+    status.textContent = 'Verify your mobile number first.';
+    showIdentityState();
+    return;
+  }
 
+  status.textContent = 'Sending…';
   const body = {
     professionalId: form.professionalId.value,
-    customerId: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    customerId: state.customerId,
     skillId: null,
     requestText: form.requestText.value,
     location: form.location.value,
@@ -95,12 +166,23 @@ async function submitEngagement(event) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  const result = await response.json();
+  const result = await readJson(response);
   if (!response.ok) {
     status.textContent = result.error || 'Unable to send request.';
+    if ((result.error || '').includes('Verified customer identity')) {
+      state.customerId = null;
+      localStorage.removeItem('ebolito.customerId');
+      showIdentityState();
+    }
     return;
   }
   status.textContent = `Request sent. Delivery: ${['WhatsApp','SMS','Web'][result.deliveredChannel ?? result.requestedChannel]}.`;
+  form.requestText.value = '';
+}
+
+async function readJson(response) {
+  try { return await response.json(); }
+  catch { return {}; }
 }
 
 function escapeHtml(value) {
@@ -111,6 +193,8 @@ function escapeAttribute(value) { return escapeHtml(value).replace(/'/g, '&#39;'
 document.addEventListener('DOMContentLoaded', () => {
   loadSkills();
   document.querySelector('[data-search-form]')?.addEventListener('submit', searchProfessionals);
+  document.querySelector('[data-identity-start-form]')?.addEventListener('submit', startIdentityVerification);
+  document.querySelector('[data-identity-complete-form]')?.addEventListener('submit', completeIdentityVerification);
   document.querySelector('[data-engagement-form]')?.addEventListener('submit', submitEngagement);
   searchProfessionals();
 });
