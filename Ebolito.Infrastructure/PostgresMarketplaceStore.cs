@@ -14,7 +14,6 @@ public sealed class PostgresMarketplaceStore : IMarketplaceStore, IAsyncDisposab
     {
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new ArgumentException("A PostgreSQL connection string is required.", nameof(connectionString));
-
         _dataSource = NpgsqlDataSource.Create(connectionString);
     }
 
@@ -67,15 +66,9 @@ public sealed class PostgresMarketplaceStore : IMarketplaceStore, IAsyncDisposab
         while (await reader.ReadAsync(cancellationToken))
         {
             results.Add(new PortfolioProject(
-                reader.GetGuid(0),
-                reader.GetGuid(1),
-                reader.GetString(2),
-                reader.GetString(3),
-                reader.GetString(4),
-                reader.IsDBNull(5) ? null : DateOnly.FromDateTime(reader.GetDateTime(5)),
-                reader.GetFieldValue<Guid[]>(6),
-                Deserialize<PortfolioPhoto[]>(reader.GetString(7)),
-                reader.GetBoolean(8)));
+                reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3), reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetFieldValue<DateOnly>(5),
+                reader.GetFieldValue<Guid[]>(6), Deserialize<PortfolioPhoto>(reader.GetString(7)), reader.GetBoolean(8)));
         }
         return results;
     }
@@ -88,17 +81,7 @@ public sealed class PostgresMarketplaceStore : IMarketplaceStore, IAsyncDisposab
         cmd.Parameters.AddWithValue(professionalId);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
-        {
-            results.Add(new Review(
-                reader.GetGuid(0),
-                reader.GetGuid(1),
-                reader.IsDBNull(2) ? null : reader.GetGuid(2),
-                reader.GetString(3),
-                reader.GetInt32(4),
-                reader.GetString(5),
-                reader.GetFieldValue<DateTimeOffset>(6),
-                reader.GetBoolean(7)));
-        }
+            results.Add(new Review(reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), reader.GetString(3), reader.GetInt32(4), reader.GetString(5), reader.GetFieldValue<DateTimeOffset>(6), reader.GetBoolean(7)));
         return results;
     }
 
@@ -108,8 +91,33 @@ public sealed class PostgresMarketplaceStore : IMarketplaceStore, IAsyncDisposab
         await using var cmd = _dataSource.CreateCommand(sql);
         cmd.Parameters.AddWithValue(id);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken)) return null;
-        return new CustomerIdentity(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3));
+        return await reader.ReadAsync(cancellationToken) ? ReadCustomer(reader) : null;
+    }
+
+    public async Task<CustomerIdentity?> GetCustomerByMobileAsync(string mobileNumber, CancellationToken cancellationToken = default)
+    {
+        const string sql = "select id, display_name, verified_mobile_number, email from customers where verified_mobile_number = $1";
+        await using var cmd = _dataSource.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(mobileNumber);
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? ReadCustomer(reader) : null;
+    }
+
+    public async Task SaveCustomerAsync(CustomerIdentity customer, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            insert into customers(id, display_name, verified_mobile_number, email)
+            values($1,$2,$3,$4)
+            on conflict(verified_mobile_number) do update set
+              display_name = excluded.display_name,
+              email = excluded.email
+            """;
+        await using var cmd = _dataSource.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(customer.Id);
+        cmd.Parameters.AddWithValue(customer.DisplayName);
+        cmd.Parameters.AddWithValue(customer.VerifiedMobileNumber);
+        cmd.Parameters.AddWithValue((object?)customer.Email ?? DBNull.Value);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task SaveEngagementAsync(Engagement engagement, CancellationToken cancellationToken = default)
@@ -117,12 +125,8 @@ public sealed class PostgresMarketplaceStore : IMarketplaceStore, IAsyncDisposab
         const string sql = """
             insert into engagements(id, professional_id, customer_id, skill_id, request_text, location, requested_channel, delivered_channel, status, created_at, updated_at)
             values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-            on conflict(id) do update set
-              delivered_channel = excluded.delivered_channel,
-              status = excluded.status,
-              updated_at = excluded.updated_at
+            on conflict(id) do update set delivered_channel = excluded.delivered_channel, status = excluded.status, updated_at = excluded.updated_at
             """;
-
         await using var cmd = _dataSource.CreateCommand(sql);
         cmd.Parameters.AddWithValue(engagement.Id);
         cmd.Parameters.AddWithValue(engagement.ProfessionalId);
@@ -145,19 +149,7 @@ public sealed class PostgresMarketplaceStore : IMarketplaceStore, IAsyncDisposab
         cmd.Parameters.AddWithValue(id);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
-
-        return Engagement.Restore(
-            reader.GetGuid(0),
-            reader.GetGuid(1),
-            reader.GetGuid(2),
-            reader.IsDBNull(3) ? null : reader.GetGuid(3),
-            reader.GetString(4),
-            reader.GetString(5),
-            (EngagementChannel)reader.GetInt32(6),
-            reader.IsDBNull(7) ? null : (EngagementChannel)reader.GetInt32(7),
-            (EngagementStatus)reader.GetInt32(8),
-            reader.GetFieldValue<DateTimeOffset>(9),
-            reader.GetFieldValue<DateTimeOffset>(10));
+        return Engagement.Restore(reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2), reader.IsDBNull(3) ? null : reader.GetGuid(3), reader.GetString(4), reader.GetString(5), (EngagementChannel)reader.GetInt32(6), reader.IsDBNull(7) ? null : (EngagementChannel)reader.GetInt32(7), (EngagementStatus)reader.GetInt32(8), reader.GetFieldValue<DateTimeOffset>(9), reader.GetFieldValue<DateTimeOffset>(10));
     }
 
     public async Task<bool> CanConnectAsync(CancellationToken cancellationToken = default)
@@ -167,20 +159,9 @@ public sealed class PostgresMarketplaceStore : IMarketplaceStore, IAsyncDisposab
     }
 
     private static Professional ReadProfessional(NpgsqlDataReader reader) => new(
-        reader.GetGuid(0),
-        reader.GetString(1),
-        reader.GetString(2),
-        reader.IsDBNull(3) ? null : reader.GetString(3),
-        reader.GetString(4),
-        reader.GetString(5),
-        reader.IsDBNull(6) ? null : reader.GetString(6),
-        reader.IsDBNull(7) ? null : reader.GetString(7),
-        reader.GetFieldValue<Guid[]>(8),
-        Deserialize<ServiceArea[]>(reader.GetString(9)),
-        reader.GetBoolean(10),
-        reader.GetBoolean(11));
+        reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetString(6), reader.IsDBNull(7) ? null : reader.GetString(7), reader.GetFieldValue<Guid[]>(8), Deserialize<ServiceArea>(reader.GetString(9)), reader.GetBoolean(10), reader.GetBoolean(11));
 
+    private static CustomerIdentity ReadCustomer(NpgsqlDataReader reader) => new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3));
     private static T[] Deserialize<T>(string json) => JsonSerializer.Deserialize<T[]>(json, JsonOptions) ?? [];
-
     public ValueTask DisposeAsync() => _dataSource.DisposeAsync();
 }
