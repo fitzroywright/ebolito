@@ -31,10 +31,7 @@ public sealed record Review(
     int Rating,
     string Comment,
     DateTimeOffset CreatedAt,
-    bool VerifiedEngagement)
-{
-    public int Rating { get; init; } = Rating is >= 1 and <= 5 ? Rating : throw new ArgumentOutOfRangeException(nameof(Rating));
-}
+    bool VerifiedEngagement);
 
 public sealed record Professional(
     Guid Id,
