@@ -39,7 +39,6 @@ public sealed class CommonMessagingEngagementNotifier : IEngagementNotifier
 
             if (channel == EngagementChannel.Web)
             {
-                // The engagement itself is the canonical Ebolito in-app notification.
                 return EngagementChannel.Web;
             }
 
@@ -64,16 +63,15 @@ public sealed class CommonMessagingEngagementNotifier : IEngagementNotifier
                 Metadata = metadata
             };
 
-            var work = new ExternalDeliveryWorkItem(
+            await queue.EnqueueAsync(new ExternalDeliveryWorkItem(
                 Guid.NewGuid(),
                 [recipient],
                 commonChannel,
                 request,
                 engagement.Id.ToString("D"),
                 "Ebolito Engagement",
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow), cancellationToken).ConfigureAwait(false);
 
-            await queue.EnqueueAsync(work, cancellationToken).ConfigureAwait(false);
             return channel;
         }
 
@@ -139,7 +137,7 @@ public sealed class CommonMessagingEngagementNotifier : IEngagementNotifier
             DateTimeOffset.UtcNow), cancellationToken).ConfigureAwait(false);
     }
 
-    private RecipientSnapshot BuildProfessionalRecipient(
+    private static RecipientSnapshot BuildProfessionalRecipient(
         Professional professional,
         NotificationEndpoint endpoint,
         EngagementChannel channel,
@@ -173,7 +171,7 @@ public sealed class CommonMessagingEngagementNotifier : IEngagementNotifier
             commonChannel);
     }
 
-    private IReadOnlyDictionary<string, string> BuildMetadata(
+    private static IReadOnlyDictionary<string, string> BuildMetadata(
         Engagement engagement,
         Professional professional,
         NotificationEndpoint endpoint,
@@ -219,5 +217,40 @@ public sealed class CommonMessagingEngagementNotifier : IEngagementNotifier
         EngagementChannel.WhatsApp => MessageChannel.WhatsApp,
         _ => MessageChannel.None
     };
+}
+
+public sealed class CommonMessagingMobileVerificationSender(IExternalDeliveryQueue queue) : IMobileVerificationSender
+{
+    public async Task SendCodeAsync(string mobileNumber, string code, CancellationToken cancellationToken = default)
+    {
+        var recipient = new RecipientSnapshot(
+            mobileNumber,
+            "Ebolito User",
+            null,
+            null,
+            mobileNumber,
+            MessageChannel.Sms);
+
+        var request = new MessageRequest
+        {
+            RecipientIds = [recipient.UserId],
+            Title = "Ebolito verification code",
+            Body = $"Your Ebolito verification code is {code}. It expires in 10 minutes.",
+            Severity = MessageSeverity.Information,
+            Channels = MessageChannel.Sms,
+            Source = "Ebolito",
+            CorrelationId = Guid.NewGuid().ToString("D"),
+            Metadata = new Dictionary<string, string> { ["ebolito.event"] = "mobile-verification" }
+        };
+
+        await queue.EnqueueAsync(new ExternalDeliveryWorkItem(
+            Guid.NewGuid(),
+            [recipient],
+            MessageChannel.Sms,
+            request,
+            null,
+            "Ebolito Mobile Verification",
+            DateTimeOffset.UtcNow), cancellationToken).ConfigureAwait(false);
+    }
 }
 #endif
