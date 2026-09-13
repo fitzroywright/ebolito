@@ -1,7 +1,7 @@
 {
   "applicationId": "Ebolito",
   "displayName": "Ebolito Skills & Services",
-  "version": "1.2",
+  "version": "1.3",
   "requirements": [
     {
       "id": "database",
@@ -22,6 +22,16 @@
       "configurationKey": "Ebolito:PublicBaseUrl",
       "validator": "configured",
       "instructionId": "ebolito.public-base-url"
+    },
+    {
+      "id": "customer-session-signing",
+      "displayName": "Customer Session Signing Credential",
+      "kind": "Secret",
+      "required": true,
+      "purpose": "Signs verified customer sessions so engagement creation and verified-review submission cannot trust a client-supplied customer identifier by itself.",
+      "environmentVariable": "EBOLITO_CUSTOMER_SESSION_KEY",
+      "validator": "secret-present",
+      "instructionId": "ebolito.customer-session-key"
     },
     {
       "id": "portfolio-storage",
@@ -47,7 +57,7 @@
       "displayName": "Common.Diagnostics",
       "kind": "Diagnostic",
       "required": true,
-      "purpose": "Provides bounded operational verification for marketplace, database, identity, portfolio storage, notification routing, action-link security and messaging health. Environment-only machine credentials are checked by diagnostics until Common.Secrets integration is enabled for them.",
+      "purpose": "Provides bounded operational verification for marketplace, database, identity, customer-session security, portfolio storage, notification routing, action-link security and messaging health. Environment-only machine credentials are checked by diagnostics until Common.Secrets integration is enabled for them.",
       "validator": "diagnostics",
       "instructionId": "common.diagnostics"
     }
