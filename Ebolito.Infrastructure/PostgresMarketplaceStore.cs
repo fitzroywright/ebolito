@@ -2,6 +2,7 @@ using System.Text.Json;
 using Ebolito.Application;
 using Ebolito.Domain;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace Ebolito.Infrastructure;
 
@@ -116,7 +117,7 @@ public sealed class PostgresMarketplaceStore : IMarketplaceStore, IAsyncDisposab
         cmd.Parameters.AddWithValue(customer.Id);
         cmd.Parameters.AddWithValue(customer.DisplayName);
         cmd.Parameters.AddWithValue(customer.VerifiedMobileNumber);
-        cmd.Parameters.AddWithValue((object?)customer.Email ?? DBNull.Value);
+        cmd.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = (object?)customer.Email ?? DBNull.Value });
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -131,11 +132,11 @@ public sealed class PostgresMarketplaceStore : IMarketplaceStore, IAsyncDisposab
         cmd.Parameters.AddWithValue(engagement.Id);
         cmd.Parameters.AddWithValue(engagement.ProfessionalId);
         cmd.Parameters.AddWithValue(engagement.CustomerId);
-        cmd.Parameters.AddWithValue((object?)engagement.SkillId ?? DBNull.Value);
+        cmd.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Uuid, Value = (object?)engagement.SkillId ?? DBNull.Value });
         cmd.Parameters.AddWithValue(engagement.RequestText);
         cmd.Parameters.AddWithValue(engagement.Location);
         cmd.Parameters.AddWithValue((int)engagement.RequestedChannel);
-        cmd.Parameters.AddWithValue((object?)(engagement.DeliveredChannel is null ? null : (int)engagement.DeliveredChannel.Value) ?? DBNull.Value);
+        cmd.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Integer, Value = engagement.DeliveredChannel is null ? DBNull.Value : (object)(int)engagement.DeliveredChannel.Value });
         cmd.Parameters.AddWithValue((int)engagement.Status);
         cmd.Parameters.AddWithValue(engagement.CreatedAt);
         cmd.Parameters.AddWithValue(engagement.UpdatedAt);
