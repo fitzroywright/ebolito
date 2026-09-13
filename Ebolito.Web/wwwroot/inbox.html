@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" data-theme="modern">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ebolito Professional Inbox</title>
+  <link rel="stylesheet" href="/css/site.css">
+  <style>
+    .inbox-shell{max-width:1180px;margin:30px auto;padding:0 20px}.inbox-toolbar,.inbox-card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:18px;margin-bottom:16px}.inbox-toolbar-grid{display:grid;grid-template-columns:1.4fr 1.4fr 1fr;gap:12px}.inbox-toolbar input,.inbox-toolbar select{width:100%;box-sizing:border-box;padding:9px}.inbox-list{display:grid;gap:14px}.inbox-card h2{margin:0 0 6px}.inbox-meta{display:flex;gap:14px;flex-wrap:wrap;color:#555;font-size:.92rem}.inbox-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.inbox-actions button{padding:8px 12px}.delivery-list{font-size:.9rem;margin-top:12px}.status-pill{display:inline-block;border:1px solid #bbb;border-radius:999px;padding:3px 9px;font-size:.82rem}.empty{padding:28px;text-align:center;color:#666}@media(max-width:780px){.inbox-toolbar-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="inbox-shell">
+    <h1>Professional Engagement Inbox</h1>
+    <p>Ebolito remains the system of record even when a request was delivered through Slack, email, SMS, WhatsApp, Teams, or another external channel.</p>
+
+    <section class="inbox-toolbar">
+      <div class="inbox-toolbar-grid">
+        <label>Professional ID<input data-professional-id placeholder="Professional GUID"></label>
+        <label>Administration key<input data-admin-key type="password" autocomplete="current-password"></label>
+        <label>Status filter<select data-status-filter><option value="">All statuses</option><option>Delivered</option><option>Accepted</option><option>Declined</option><option>Contacted</option><option>Hired</option><option>Completed</option><option>Reviewed</option></select></label>
+      </div>
+      <div class="inbox-actions"><button type="button" data-load>Load inbox</button><a href="/manage.html">Profile management</a><a href="/">Marketplace</a></div>
+      <p data-global-status></p>
+    </section>
+
+    <section>
+      <h2 data-inbox-title>Engagements</h2>
+      <div class="inbox-list" data-inbox-list><div class="empty">Enter a professional ID and administration key to load the inbox.</div></div>
+    </section>
+  </main>
+  <script src="/js/inbox.js"></script>
+</body>
+</html>
