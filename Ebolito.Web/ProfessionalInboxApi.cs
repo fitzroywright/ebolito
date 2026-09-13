@@ -10,10 +10,11 @@ public static class ProfessionalInboxEndpoints
         endpoints.MapGet("/api/admin/professionals/{id:guid}/engagements", async (
             Guid id,
             HttpRequest request,
+            ProfessionalSessionTokenService sessions,
             IMarketplaceStore store,
             CancellationToken ct) =>
         {
-            if (!ProfileAdministration.IsAuthorized(request)) return Results.Unauthorized();
+            if (!ProfessionalAccess.IsAuthorized(request, id, sessions)) return Results.Unauthorized();
             var professional = await store.GetProfessionalAsync(id, ct);
             if (professional is null) return Results.NotFound();
 
@@ -43,7 +44,6 @@ public static class ProfessionalInboxEndpoints
                 engagements = items
             });
         });
-
         return endpoints;
     }
 }
