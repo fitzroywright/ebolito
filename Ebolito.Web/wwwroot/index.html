@@ -24,15 +24,16 @@
   <nav><a href="#">Home</a><a href="#">Mission</a><a href="#">Testimonials</a><a href="#">Contact Us</a><a href="#">About Us</a></nav>
 
   <main>
-    <aside class="featured panel"><h2>Featured Professional</h2><h3>Beverly Hyman</h3><b>Plumber</b><div class="portrait placeholder">BH</div><p>Experienced, dependable service for plumbing projects big and small.</p><a href="#">View Full Profile »</a><blockquote>“Professional, on time and very knowledgeable.”</blockquote><div class="stars">★★★★★</div></aside>
+    <aside class="featured panel"><h2>Featured Professional</h2><h3>Beverly Hyman</h3><b>Plumber</b><div class="portrait placeholder">BH</div><p>Experienced, dependable service for plumbing projects big and small.</p><a href="javascript:showProfile('beverly-hyman')">View Full Profile »</a><blockquote>“Professional, on time and very knowledgeable.”</blockquote><div class="stars">★★★★★</div></aside>
 
     <section class="center">
-      <div class="hero panel"><h2>Need help with a project?</h2><h3>Get matched with our screened professionals!</h3><p><b>Fast. Easy. Reliable.</b><br>Ebolito helps you find skilled and trusted professionals in your area.</p><form><label>What service do you need?<select><option>-- Select a Service --</option><option>Plumbing</option><option>Electrical</option><option>Construction</option></select></label><label>Where do you need it?<input placeholder="Enter location (e.g. Kingston)"></label><button>Search</button></form><em>Find. Compare. Contact. Get it done!</em></div>
+      <div class="hero panel"><h2>Need help with a project?</h2><h3>Get matched with our screened professionals!</h3><p><b>Fast. Easy. Reliable.</b><br>Ebolito helps you find skilled and trusted professionals in your area.</p><form data-search-form><label>What service do you need?<select data-service><option>-- Select a Service --</option></select></label><label>Where do you need it?<input data-location placeholder="Enter location (e.g. Kingston)"></label><button>Search</button></form><em>Find. Compare. Contact. Get it done!</em></div>
 
-      <div class="pros panel"><h2>Here are some of our best professionals <small>From masons to dentists and dermatologists.</small></h2><div class="categories"><span>👷<b>Construction &amp; Masonry</b></span><span>🦷<b>Dentists</b></span><span>⚡<b>Electricians</b></span><span>🩺<b>Doctors</b></span><span>🎨<b>Painters</b></span><span>✂️<b>Hair &amp; Beauty</b></span><span>👨‍🍳<b>Caterers</b></span><span>🌿<b>Landscaping</b></span></div><p>Read reviews from people just like you and choose with confidence.</p></div>
+      <div class="pros panel"><h2>Professionals for you <small>See their work before you make contact.</small></h2><div class="results" data-results><p>Loading professionals…</p></div></div>
+      <section class="profile-panel panel" data-profile hidden></section>
     </section>
 
-    <aside class="advert panel"><h2>Advertise With Us</h2><h3>Take your business to the next level!</h3><p>Reach potential customers across Jamaica. Affordable advertising for businesses of all sizes.</p><button>Learn More »</button><hr><strong>Support Jamaican Professionals!</strong></aside>
+    <aside class="advert panel"><h2>Advertise With Us</h2><h3>Take your business to the next level!</h3><p>Create your professional mini-site, show your best work and let customers reach you even when your Internet connection is unreliable.</p><button>Learn More »</button><hr><strong>Support Jamaican Professionals!</strong></aside>
   </main>
 
   <section class="legacy-home">
@@ -40,7 +41,22 @@
     <div class="legacy-card"><a class="legacy-title" href="#">Read about some of our Pros</a><em>From masons to dentists and dermatologists.</em><p>Read about high quality professionals in your area. Reviews come directly from people just like you.</p><a href="#">Leave a Comment</a></div>
   </section>
 
+  <dialog class="engagement-dialog" data-engagement-dialog>
+    <form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form>
+    <h2>Request <span data-professional-name>a professional</span></h2>
+    <p>Your verified Ebolito identity is used so the professional knows who is requesting contact. The professional can receive this by WhatsApp or SMS without needing to stay online.</p>
+    <form data-engagement-form>
+      <input type="hidden" name="professionalId">
+      <label>What do you need?<textarea name="requestText" required placeholder="Briefly describe the job"></textarea></label>
+      <label>Where is the job?<input name="location" required placeholder="Community or parish"></label>
+      <label>Preferred contact channel<select name="preferredChannel"><option value="0">WhatsApp</option><option value="1">SMS</option><option value="2">Ebolito web</option></select></label>
+      <button type="submit">Send engagement request</button>
+      <p data-engagement-status></p>
+    </form>
+  </dialog>
+
   <footer>About Us &nbsp; | &nbsp; Mission &nbsp; | &nbsp; Publication &nbsp; | &nbsp; Advertise &nbsp; | &nbsp; Contact Us <span>Ebolito © 2026</span></footer>
   <script src="/js/theme.js"></script>
+  <script src="/js/marketplace.js"></script>
 </body>
 </html>
