@@ -1,6 +1,7 @@
 const params = new URLSearchParams(window.location.search);
 const engagementId = params.get('engagement');
 const customerId = localStorage.getItem('ebolito.customerId');
+const sessionToken = localStorage.getItem('ebolito.customerSessionToken');
 
 function setSummary(html) {
   const host = document.querySelector('[data-engagement-summary]');
@@ -13,8 +14,8 @@ async function loadEngagement() {
     setSummary('This review link is missing an engagement ID.');
     return;
   }
-  if (!customerId) {
-    setSummary('This browser does not have a verified Ebolito customer identity. Return to Ebolito and verify the mobile number used for the engagement before reviewing it.');
+  if (!customerId || !sessionToken) {
+    setSummary('This browser does not have a current verified Ebolito customer session. Return to Ebolito and verify the mobile number used for the engagement before reviewing it.');
     return;
   }
 
@@ -53,7 +54,10 @@ async function submitReview(event) {
 
   const response = await fetch('/api/reviews', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Ebolito-Customer-Session': sessionToken
+    },
     body: JSON.stringify({
       engagementId: form.engagementId.value,
       customerId,
@@ -63,7 +67,9 @@ async function submitReview(event) {
   });
   const result = await readJson(response);
   if (!response.ok) {
-    status.textContent = result.error || result.detail || 'Unable to submit review.';
+    status.textContent = response.status === 401
+      ? 'Your verified customer session is no longer valid. Verify your mobile number again from Ebolito.'
+      : (result.error || result.detail || 'Unable to submit review.');
     return;
   }
 
