@@ -100,6 +100,8 @@ public static class ProfessionalNotificationPolicyEndpoints
 {
     public static IEndpointRouteBuilder MapProfessionalNotificationPolicyEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapProfessionalSiteManagementEndpoints();
+
         endpoints.MapGet("/api/admin/messaging/capabilities", (HttpRequest request, IConfiguration configuration) =>
         {
             if (!ProfileAdministration.IsAuthorized(request)) return Results.Unauthorized();
