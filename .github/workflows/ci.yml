@@ -58,6 +58,18 @@ jobs:
           repository: fitzroywright/Common.Messaging
           path: Common/Common.Messaging
 
+      - name: Checkout Common.Diagnostics
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Diagnostics
+          path: Common/Common.Diagnostics
+
+      - name: Checkout Common.Secrets
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Secrets
+          path: Common/Common.Secrets
+
       - name: Checkout Common.Storage
         uses: actions/checkout@v4
         with:
@@ -72,5 +84,5 @@ jobs:
       - name: Restore with Common workspace
         run: dotnet restore Ebolito.Web/Ebolito.Web.csproj -p:CommonRoot="${{ github.workspace }}/Common"
 
-      - name: Build with Common.Messaging and Common.Storage
+      - name: Build with Common.Messaging, Diagnostics, Secrets and Storage
         run: dotnet build Ebolito.Web/Ebolito.Web.csproj --no-restore --configuration Release -p:CommonRoot="${{ github.workspace }}/Common"
