@@ -12,12 +12,18 @@ public sealed class CustomerSessionTokenService
     private readonly byte[]? signingKey;
     private readonly TimeSpan lifetime;
 
-    public CustomerSessionTokenService(IConfiguration configuration)
+    public CustomerSessionTokenService(IConfiguration configuration, IWebHostEnvironment environment)
     {
         var secret = Environment.GetEnvironmentVariable("EBOLITO_CUSTOMER_SESSION_KEY");
-        signingKey = string.IsNullOrWhiteSpace(secret) ? null : Encoding.UTF8.GetBytes(secret);
+        signingKey = !string.IsNullOrWhiteSpace(secret)
+            ? Encoding.UTF8.GetBytes(secret)
+            : environment.IsDevelopment()
+                ? RandomNumberGenerator.GetBytes(32)
+                : null;
         lifetime = TimeSpan.FromHours(Math.Clamp(configuration.GetValue("Ebolito:CustomerSessionHours", 24 * 90), 1, 24 * 365));
     }
+
+    public bool IsConfigured => signingKey is not null;
 
     public CustomerSession Issue(Guid customerId)
     {
