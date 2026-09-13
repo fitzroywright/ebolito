@@ -119,20 +119,28 @@ app.MapPost("/api/engagements", async (HttpRequest httpRequest, EngagementReques
     catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
 });
 
-app.MapPost("/api/engagements/{id:guid}/response", async (Guid id, EngagementResponse response, IMarketplaceService marketplace, CancellationToken ct) =>
+app.MapPost("/api/engagements/{id:guid}/response", async (Guid id, HttpRequest httpRequest, EngagementResponse response, IMarketplaceService marketplace, CancellationToken ct) =>
 {
+    if (!ProfileAdministration.IsAuthorized(httpRequest)) return Results.Unauthorized();
     try { return Results.Ok(await marketplace.RespondToEngagementAsync(id, response, ct)); }
     catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
 });
 
-app.MapGet("/api/engagements/{id:guid}", async (Guid id, IMarketplaceStore store, CancellationToken ct) =>
+app.MapGet("/api/engagements/{id:guid}", async (Guid id, HttpRequest httpRequest, CustomerSessionTokenService sessions, IMarketplaceStore store, CancellationToken ct) =>
 {
     var engagement = await store.GetEngagementAsync(id, ct);
-    return engagement is null ? Results.NotFound() : Results.Ok(engagement);
+    if (engagement is null) return Results.NotFound();
+
+    var adminAuthorized = ProfileAdministration.IsAuthorized(httpRequest);
+    var customerAuthorized = sessions.TryValidate(httpRequest, out var sessionCustomerId) && sessionCustomerId == engagement.CustomerId;
+    return adminAuthorized || customerAuthorized ? Results.Ok(engagement) : Results.Unauthorized();
 });
 
-app.MapGet("/api/engagements/{id:guid}/deliveries", async (Guid id, IMarketplaceStore store, CancellationToken ct) =>
-    Results.Ok(await store.GetDeliveryAttemptsAsync(id, ct)));
+app.MapGet("/api/engagements/{id:guid}/deliveries", async (Guid id, HttpRequest httpRequest, IMarketplaceStore store, CancellationToken ct) =>
+{
+    if (!ProfileAdministration.IsAuthorized(httpRequest)) return Results.Unauthorized();
+    return Results.Ok(await store.GetDeliveryAttemptsAsync(id, ct));
+});
 
 app.MapGet("/engagements/{id:guid}/view", async (Guid id, long expires, string sig, SecureEngagementActionLinks links, IMarketplaceStore store, CancellationToken ct) =>
 {
