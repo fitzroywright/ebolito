@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="modern">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ebolito Engagement Management</title>
+  <link rel="stylesheet" href="/css/site.css">
+  <style>
+    .shell{max-width:760px;margin:40px auto;padding:0 20px}.card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:22px}.card label{display:block;margin:14px 0}.card input,.card select{width:100%;box-sizing:border-box;padding:10px}.actions{display:flex;gap:10px;flex-wrap:wrap}.status{min-height:1.4em}.summary{background:#f6f6f6;border-radius:8px;padding:12px;margin:14px 0}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="card">
+      <h1>Engagement Management</h1>
+      <p>This commissioning surface uses the existing administration-key boundary. It does not replace future professional self-service authentication.</p>
+      <label>Engagement ID<input data-engagement-id placeholder="00000000-0000-0000-0000-000000000000"></label>
+      <label>Administration key<input data-admin-key type="password" autocomplete="current-password"></label>
+      <div class="actions"><button data-load>Load engagement</button><a href="/manage.html">Professional management</a><a href="/">Marketplace</a></div>
+      <div class="summary" data-summary>Enter an engagement ID and load it.</div>
+      <label>Advance engagement
+        <select data-action>
+          <option value="0">Contacted</option>
+          <option value="1">Hired</option>
+          <option value="2">Completed</option>
+        </select>
+      </label>
+      <button data-advance>Apply transition</button>
+      <p class="status" data-status></p>
+      <p data-review-wrap hidden>Customer review link: <a data-review-link></a></p>
+    </section>
+  </main>
+  <script src="/js/engagement-admin.js"></script>
+</body>
+</html>
