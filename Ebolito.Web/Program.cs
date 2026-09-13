@@ -18,6 +18,7 @@ builder.Services.AddSingleton<IEngagementActionLinkBuilder>(provider => provider
 builder.Services.AddSingleton<CustomerSessionTokenService>();
 builder.Services.AddSingleton<ProfessionalSessionTokenService>();
 builder.Services.AddSingleton<ProfessionalSignInService>();
+builder.Services.AddSingleton<ProfessionalRegistrationService>();
 
 #if COMMON_MESSAGING
 builder.Services.AddEbolitoCommonMessaging(builder.Configuration, postgresConnection);
@@ -41,6 +42,7 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapProfessionalAccessEndpoints();
+app.MapProfessionalRegistrationEndpoints();
 app.MapProfessionalNotificationPolicyEndpoints();
 app.MapVerifiedReviewEndpoints();
 app.MapEngagementManagementEndpoints();
