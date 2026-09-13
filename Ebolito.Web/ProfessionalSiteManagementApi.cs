@@ -36,6 +36,8 @@ public static partial class ProfessionalSiteManagementEndpoints
 
     public static IEndpointRouteBuilder MapProfessionalSiteManagementEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapPortfolioMediaEndpoints();
+
         endpoints.MapGet("/api/admin/professionals/{id:guid}/site", async (Guid id, HttpRequest request, IMarketplaceStore store, CancellationToken ct) =>
         {
             if (!ProfileAdministration.IsAuthorized(request)) return Results.Unauthorized();
@@ -71,10 +73,11 @@ public static partial class ProfessionalSiteManagementEndpoints
 
             try
             {
-                await ValidateSkillIdsAsync(update.SkillIds, store, ct);
                 ValidateProject(update);
+                await ValidateSkillIdsAsync(update.SkillIds, store, ct);
+                var projectId = update.Id is null or { } value when value == Guid.Empty ? Guid.NewGuid() : update.Id.Value;
                 var project = new PortfolioProject(
-                    update.Id.GetValueOrDefault(Guid.NewGuid()),
+                    projectId,
                     id,
                     update.Title.Trim(),
                     update.Description.Trim(),
@@ -111,9 +114,9 @@ public static partial class ProfessionalSiteManagementEndpoints
         if (string.IsNullOrWhiteSpace(update.DisplayName)) throw new ArgumentException("Display name is required.");
         if (string.IsNullOrWhiteSpace(update.Headline)) throw new ArgumentException("Headline is required.");
         if (string.IsNullOrWhiteSpace(update.About)) throw new ArgumentException("About text is required.");
-        if (update.SkillIds.Count == 0) throw new ArgumentException("At least one skill is required.");
-        if (update.ServiceAreas.Count == 0) throw new ArgumentException("At least one service area is required.");
-        if (update.ServiceAreas.Any(x => string.IsNullOrWhiteSpace(x.Parish))) throw new ArgumentException("Every service area requires a parish.");
+        if (update.SkillIds is null || update.SkillIds.Count == 0) throw new ArgumentException("At least one skill is required.");
+        if (update.ServiceAreas is null || update.ServiceAreas.Count == 0) throw new ArgumentException("At least one service area is required.");
+        if (update.ServiceAreas.Any(x => x is null || string.IsNullOrWhiteSpace(x.Parish))) throw new ArgumentException("Every service area requires a parish.");
 
         var slug = update.Slug.Trim();
         var existingSlug = await store.GetProfessionalBySlugAsync(slug, ct);
@@ -137,7 +140,7 @@ public static partial class ProfessionalSiteManagementEndpoints
 
     private static async Task ValidateSkillIdsAsync(IReadOnlyCollection<Guid> requested, IMarketplaceStore store, CancellationToken ct)
     {
-        if (requested.Count == 0) throw new ArgumentException("At least one skill is required.");
+        if (requested is null || requested.Count == 0) throw new ArgumentException("At least one skill is required.");
         var valid = (await store.GetSkillsAsync(ct)).Select(x => x.Id).ToHashSet();
         var unknown = requested.Where(x => !valid.Contains(x)).Distinct().ToArray();
         if (unknown.Length > 0) throw new ArgumentException($"Unknown skill IDs: {string.Join(", ", unknown)}");
@@ -148,10 +151,12 @@ public static partial class ProfessionalSiteManagementEndpoints
         if (string.IsNullOrWhiteSpace(update.Title)) throw new ArgumentException("Project title is required.");
         if (string.IsNullOrWhiteSpace(update.Description)) throw new ArgumentException("Project description is required.");
         if (string.IsNullOrWhiteSpace(update.Location)) throw new ArgumentException("Project location is required.");
+        if (update.SkillIds is null || update.SkillIds.Count == 0) throw new ArgumentException("At least one skill is required.");
+        if (update.Photos is null) throw new ArgumentException("Photos collection is required.");
         if (update.Photos.Count > 30) throw new ArgumentException("A portfolio project may contain at most 30 photos.");
         foreach (var photo in update.Photos)
         {
-            if (string.IsNullOrWhiteSpace(photo.Url)) throw new ArgumentException("Portfolio photo URL is required.");
+            if (photo is null || string.IsNullOrWhiteSpace(photo.Url)) throw new ArgumentException("Portfolio photo URL is required.");
             if (!Uri.TryCreate(photo.Url, UriKind.RelativeOrAbsolute, out _)) throw new ArgumentException($"Invalid portfolio photo URL: {photo.Url}");
         }
     }
