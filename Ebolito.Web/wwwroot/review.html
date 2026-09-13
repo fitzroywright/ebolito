@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-theme="modern">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Review an Ebolito Engagement</title>
+  <link rel="stylesheet" href="/css/site.css">
+  <style>
+    .review-shell{max-width:720px;margin:40px auto;padding:0 20px}.review-card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:22px}.review-card label{display:block;margin:14px 0}.review-card input,.review-card select,.review-card textarea{width:100%;box-sizing:border-box;padding:10px}.review-card textarea{min-height:140px}.status{min-height:1.4em}.engagement-summary{padding:12px;background:#f6f6f6;border-radius:8px;margin:12px 0}
+  </style>
+</head>
+<body>
+  <main class="review-shell">
+    <section class="review-card">
+      <h1>Review your Ebolito engagement</h1>
+      <p>Only the verified customer who created a completed engagement can submit a review. One verified review is allowed per engagement.</p>
+      <div class="engagement-summary" data-engagement-summary>Loading engagement…</div>
+      <form data-review-form hidden>
+        <input type="hidden" name="engagementId">
+        <label>Rating
+          <select name="rating" required>
+            <option value="5">5 — Excellent</option>
+            <option value="4">4 — Very good</option>
+            <option value="3">3 — Good</option>
+            <option value="2">2 — Fair</option>
+            <option value="1">1 — Poor</option>
+          </select>
+        </label>
+        <label>Your review<textarea name="comment" maxlength="4000" required placeholder="Describe your experience with this professional"></textarea></label>
+        <button type="submit">Submit verified review</button>
+        <p class="status" data-review-status></p>
+      </form>
+      <p><a href="/">Back to Ebolito</a></p>
+    </section>
+  </main>
+  <script src="/js/review.js"></script>
+</body>
+</html>
