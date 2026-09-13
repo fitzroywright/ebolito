@@ -41,6 +41,18 @@ app.MapPost("/api/engagements", async (EngagementRequest request, IMarketplaceSe
     }
 });
 
+app.MapPost("/api/engagements/{id:guid}/response", async (Guid id, EngagementResponse response, IMarketplaceService marketplace, CancellationToken ct) =>
+{
+    try
+    {
+        return Results.Ok(await marketplace.RespondToEngagementAsync(id, response, ct));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
 app.MapGet("/api/engagements/{id:guid}", async (Guid id, IMarketplaceStore store, CancellationToken ct) =>
 {
     var engagement = await store.GetEngagementAsync(id, ct);
