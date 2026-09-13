@@ -8,7 +8,7 @@
       "displayName": "Ebolito PostgreSQL Database",
       "kind": "ExternalService",
       "required": true,
-      "purpose": "Stores professionals, portfolios, reviews, verified customer identities and engagement state.",
+      "purpose": "Stores professionals, portfolios, reviews, verified customer identities, engagement state, channel policies and delivery audit history.",
       "configurationKey": "ConnectionStrings:Ebolito",
       "validator": "postgresql",
       "instructionId": "postgresql.ebolito"
@@ -18,7 +18,7 @@
       "displayName": "Common.Messaging",
       "kind": "ExternalService",
       "required": true,
-      "purpose": "Delivers engagement requests, customer responses and mobile verification through WhatsApp/SMS with fallback behavior.",
+      "purpose": "Owns delivery of Ebolito notifications across in-app, WhatsApp, SMS, email, Slack, Microsoft Teams, push, webhooks and future supported channels. Ebolito remains the system of record and controls channel policy and escalation.",
       "validator": "configured",
       "instructionId": "common.messaging"
     },
@@ -27,7 +27,7 @@
       "displayName": "Common.Diagnostics",
       "kind": "Diagnostic",
       "required": true,
-      "purpose": "Provides bounded operational verification for marketplace, database, identity and messaging health.",
+      "purpose": "Provides bounded operational verification for marketplace, database, identity, notification routing and messaging health.",
       "validator": "diagnostics",
       "instructionId": "common.diagnostics"
     }
