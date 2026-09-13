@@ -16,32 +16,12 @@
     {
       "id": "public-base-url",
       "displayName": "Ebolito Public Base URL",
-      "kind": "Setting",
+      "kind": "Configuration",
       "required": true,
       "purpose": "Builds signed View, Accept and Decline links included in external engagement notifications.",
       "configurationKey": "Ebolito:PublicBaseUrl",
-      "validator": "url",
+      "validator": "configured",
       "instructionId": "ebolito.public-base-url"
-    },
-    {
-      "id": "engagement-action-key",
-      "displayName": "Engagement Action Signing Key",
-      "kind": "Secret",
-      "required": true,
-      "purpose": "Signs expiring external engagement action links so recipients cannot fabricate Accept or Decline actions.",
-      "secretName": "Ebolito:EngagementActionKey",
-      "validator": "secret-resolvable",
-      "instructionId": "secrets.ebolito-engagement-action-key"
-    },
-    {
-      "id": "profile-admin-key",
-      "displayName": "Profile Administration Key",
-      "kind": "Secret",
-      "required": true,
-      "purpose": "Protects professional notification-policy administration until full professional self-service authentication is commissioned.",
-      "secretName": "Ebolito:ProfileAdminKey",
-      "validator": "secret-resolvable",
-      "instructionId": "secrets.ebolito-profile-admin-key"
     },
     {
       "id": "messaging",
@@ -57,7 +37,7 @@
       "displayName": "Common.Diagnostics",
       "kind": "Diagnostic",
       "required": true,
-      "purpose": "Provides bounded operational verification for marketplace, database, identity, notification routing, action-link security and messaging health.",
+      "purpose": "Provides bounded operational verification for marketplace, database, identity, notification routing, action-link security and messaging health. Environment-only machine credentials are checked by diagnostics until Common.Secrets integration is enabled for them.",
       "validator": "diagnostics",
       "instructionId": "common.diagnostics"
     }
