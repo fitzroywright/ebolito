@@ -12,6 +12,8 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
     private readonly IReadOnlyCollection<Review> _reviews;
     private readonly ConcurrentDictionary<Guid, CustomerIdentity> _customers = new();
     private readonly ConcurrentDictionary<Guid, Engagement> _engagements = new();
+    private readonly ConcurrentDictionary<Guid, ProfessionalNotificationPolicy> _notificationPolicies = new();
+    private readonly ConcurrentDictionary<Guid, ConcurrentQueue<EngagementDeliveryAttempt>> _deliveryAttempts = new();
 
     public InMemoryMarketplaceStore()
     {
@@ -27,6 +29,32 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
             new Professional(beverlyId, "beverly-hyman", "Beverly Hyman", "Hyman Plumbing Services", "Reliable plumbing for homes and businesses", "Experienced plumber serving Kingston and St. Andrew. Repairs, installations and emergency work.", "+18765550101", "+18765550101", [plumbing.Id], [new ServiceArea("Kingston"), new ServiceArea("St. Andrew")], true),
             new Professional(marcusId, "marcus-brown", "Marcus Brown", "Brown Custom Woodwork", "Custom kitchens, cabinetry and furniture", "Custom carpentry focused on durable, practical work and clean finishes.", "+18765550102", "+18765550102", [carpentry.Id], [new ServiceArea("St. Catherine", "Spanish Town"), new ServiceArea("Kingston")], true)
         ];
+
+        _notificationPolicies[beverlyId] = new ProfessionalNotificationPolicy(
+            beverlyId,
+            EngagementChannel.WhatsApp,
+            null,
+            EngagementChannel.Sms,
+            TimeSpan.FromMinutes(10),
+            [EngagementChannel.WhatsApp, EngagementChannel.Sms],
+            [
+                new NotificationEndpoint(EngagementChannel.WhatsApp, "+18765550101", "Beverly WhatsApp"),
+                new NotificationEndpoint(EngagementChannel.Sms, "+18765550101", "Beverly mobile")
+            ]);
+
+        _notificationPolicies[marcusId] = new ProfessionalNotificationPolicy(
+            marcusId,
+            EngagementChannel.Slack,
+            EngagementChannel.Email,
+            EngagementChannel.Sms,
+            TimeSpan.FromMinutes(10),
+            [EngagementChannel.Slack, EngagementChannel.Email, EngagementChannel.WhatsApp, EngagementChannel.Sms],
+            [
+                new NotificationEndpoint(EngagementChannel.Slack, "#new-leads", "Brown Custom Woodwork leads"),
+                new NotificationEndpoint(EngagementChannel.Email, "leads@example.com", "Business email"),
+                new NotificationEndpoint(EngagementChannel.WhatsApp, "+18765550102", "Marcus WhatsApp"),
+                new NotificationEndpoint(EngagementChannel.Sms, "+18765550102", "Marcus mobile")
+            ]);
 
         _projects =
         [
@@ -55,20 +83,43 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
     public Task SaveCustomerAsync(CustomerIdentity customer, CancellationToken cancellationToken = default) { _customers[customer.Id] = customer; return Task.CompletedTask; }
     public Task SaveEngagementAsync(Engagement engagement, CancellationToken cancellationToken = default) { _engagements[engagement.Id] = engagement; return Task.CompletedTask; }
     public Task<Engagement?> GetEngagementAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_engagements.TryGetValue(id, out var value) ? value : null);
+    public Task<IReadOnlyCollection<Engagement>> GetUnacknowledgedEngagementsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<Engagement>>(_engagements.Values.Where(x => x.Status == EngagementStatus.Delivered && x.UpdatedAt <= olderThan).ToArray());
+
+    public Task<ProfessionalNotificationPolicy> GetNotificationPolicyAsync(Guid professionalId, CancellationToken cancellationToken = default)
+    {
+        if (_notificationPolicies.TryGetValue(professionalId, out var policy)) return Task.FromResult(policy);
+        return Task.FromResult(new ProfessionalNotificationPolicy(professionalId, EngagementChannel.WhatsApp, null, EngagementChannel.Sms, TimeSpan.FromMinutes(10), [EngagementChannel.WhatsApp, EngagementChannel.Sms], []));
+    }
+
+    public Task SaveDeliveryAttemptAsync(EngagementDeliveryAttempt attempt, CancellationToken cancellationToken = default)
+    {
+        _deliveryAttempts.GetOrAdd(attempt.EngagementId, _ => new ConcurrentQueue<EngagementDeliveryAttempt>()).Enqueue(attempt);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyCollection<EngagementDeliveryAttempt>> GetDeliveryAttemptsAsync(Guid engagementId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyCollection<EngagementDeliveryAttempt>>(
+            _deliveryAttempts.TryGetValue(engagementId, out var attempts) ? attempts.ToArray() : []);
+    }
 }
 
 public sealed class FallbackEngagementNotifier : IEngagementNotifier
 {
-    public Task<EngagementChannel> DeliverAsync(Professional professional, CustomerIdentity customer, Engagement engagement, CancellationToken cancellationToken = default)
+    public Task<EngagementChannel> DeliverAsync(
+        Professional professional,
+        CustomerIdentity customer,
+        Engagement engagement,
+        ProfessionalNotificationPolicy policy,
+        IReadOnlyCollection<EngagementDeliveryAttempt> previousAttempts,
+        CancellationToken cancellationToken = default)
     {
-        var channel = engagement.RequestedChannel switch
-        {
-            EngagementChannel.WhatsApp when !string.IsNullOrWhiteSpace(professional.WhatsAppNumber) => EngagementChannel.WhatsApp,
-            EngagementChannel.WhatsApp when !string.IsNullOrWhiteSpace(professional.PhoneNumber) => EngagementChannel.Sms,
-            EngagementChannel.Sms when !string.IsNullOrWhiteSpace(professional.PhoneNumber) => EngagementChannel.Sms,
-            _ => EngagementChannel.Web
-        };
-        return Task.FromResult(channel);
+        var attempted = previousAttempts.Where(x => x.Succeeded).Select(x => x.Channel).ToHashSet();
+        var next = policy.BuildRoute().FirstOrDefault(channel => !attempted.Contains(channel) && policy.HasEndpoint(channel));
+
+        // Common.Messaging owns the real transport. This fallback chooses the same route deterministically
+        // so development exercises Ebolito's policy and escalation without pretending to send externally.
+        return Task.FromResult(next);
     }
 
     public Task NotifyCustomerAsync(CustomerIdentity customer, Professional professional, Engagement engagement, CancellationToken cancellationToken = default) => Task.CompletedTask;
