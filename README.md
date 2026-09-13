@@ -4,83 +4,177 @@ Resurrection of the original **Ebolito Skills & Services** marketplace: a Jamaic
 
 ## Product model
 
-Ebolito lets customers:
+Ebolito lets customers search by service/location, inspect a professional's mini-site and work portfolio, verify their mobile identity once, and send an engagement request. Ebolito remains the system of record for the engagement, its status, customer/professional identity, timestamps and delivery audit trail.
 
-1. search by service and location;
-2. compare professionals and screened providers;
-3. inspect each professional's mini-site, skills, service areas, portfolio projects and reviews;
-4. verify their mobile identity once;
-5. send an engagement request;
-6. receive a return notification when the professional accepts or declines.
+The customer does **not** choose how Ebolito reaches the professional. They may only state how they prefer the professional to contact them. The professional or business owns a notification policy that defines primary, business, fallback and escalation channels.
 
-Professionals do not need to remain online. The engagement boundary is designed for **WhatsApp -> SMS -> Web** fallback so someone with only a mobile phone can still participate.
+A typical business route can therefore be:
+
+`Ebolito in-app -> Slack #new-leads -> Email -> WhatsApp -> SMS`
+
+Accepting or declining the engagement stops escalation automatically.
 
 ## UI themes
 
-One application codebase exposes selectable presentation-only themes:
+One application codebase exposes two presentation-only themes:
 
 - **Modern** - current Ebolito marketplace presentation.
 - **Legacy / Wayback** - preserves the visual character and wording of the original ESSJ/Ebolito site.
 
-Themes never fork domain behavior, data, routes or engagement workflows.
+Themes never fork business logic, data, routes or engagement workflows.
 
-> The original legacy header image was recovered from the old ESSJ source. The current GitHub connector can only write text files, so the CSS reference is preserved but the binary asset still needs to be copied into `Ebolito.Web/wwwroot/legacy/defaultheader.png` from the recovered source tree.
+> The recovered original legacy header remains a binary asset that must be copied to `Ebolito.Web/wwwroot/legacy/defaultheader.png` from the old source tree.
 
-## Flat repository structure
+## Flat workspace
 
-- `Ebolito.Domain/` - marketplace entities and engagement lifecycle.
-- `Ebolito.Application/` - search, profiles, engagement orchestration and mobile identity verification.
-- `Ebolito.Infrastructure/` - in-memory demo store, PostgreSQL store, verification adapters and delivery boundaries.
-- `Ebolito.Web/` - web host, API, themes, Aegis.Configuration registration and engineering diagnostics protocol.
-- `Ebolito.Tests/` - lifecycle, search and identity verification tests.
+The Ebolito repository is flat:
+
+- `Ebolito.Domain/`
+- `Ebolito.Application/`
+- `Ebolito.Infrastructure/`
+- `Ebolito.Web/`
+- `Ebolito.Tests/`
 
 Target framework: **.NET 10**.
 
+When the normal workspace also contains:
+
+```text
+D:\Projects\Common\Common.Messaging\
+```
+
+Ebolito automatically compiles the real Common.Messaging adapter through conditional project references. A standalone Ebolito clone still builds and uses the deterministic fallback adapter.
+
 ## Development run
 
-With no database connection string, Ebolito starts with the in-memory development store:
+With no PostgreSQL connection string, Ebolito uses its in-memory development store:
 
 ```powershell
 dotnet run --project Ebolito.Web
 ```
 
-The development mobile verification sender writes the one-time code to the server console. This behavior is development-only.
+Without Common.Messaging/SMS, development mobile verification writes the OTP to the server console. Production never logs OTP values through the fallback sender.
 
 ## PostgreSQL
 
-The production persistence implementation uses **Npgsql 10.0.3**, aligned with the current Common.Messaging stack.
-
-Create the schema before first production startup:
+Production persistence uses **Npgsql 10.0.3**.
 
 ```powershell
 psql "$env:ConnectionStrings__Ebolito" -f Ebolito.Infrastructure/Postgres/schema.sql
 ```
 
-Configure the application using the standard ASP.NET Core environment-variable form:
+Configure:
 
 ```text
 ConnectionStrings__Ebolito=Host=...;Database=ebolito;Username=...;Password=...
 ```
 
-When `ConnectionStrings:Ebolito` is present, the PostgreSQL store is selected automatically. Otherwise the in-memory store is used.
+PostgreSQL stores professionals, skills, portfolios, reviews, verified customers, engagements, professional notification policies/endpoints and engagement delivery-attempt history.
 
 ## Mobile identity
 
-Before Ebolito releases an engagement to a professional, the customer must have a verified mobile identity.
+Before an engagement is sent, the customer must have a verified mobile identity. Verification:
 
-The verification flow:
+- generates a cryptographically random six-digit OTP;
+- stores only a SHA-256 hash;
+- expires after ten minutes;
+- uses fixed-time hash comparison;
+- reuses an existing verified identity for the same normalized mobile number.
 
-- generates a cryptographically random six-digit code;
-- stores only its SHA-256 hash;
-- expires the challenge after ten minutes;
-- compares verification hashes in fixed time;
-- reuses the same Ebolito customer identity for an already verified mobile number.
+When Common.Messaging SMS is enabled, OTP delivery is queued through Common.Messaging. Otherwise production verification fails closed.
 
-Production verification deliberately **fails closed** until a real Common.Messaging/SMS adapter is configured. Codes are never written to production logs by the fallback implementation.
+## Common.Messaging
+
+**Ebolito owns routing policy; Common.Messaging owns transport.**
+
+The production Ebolito adapter writes `ExternalDeliveryWorkItem` records to Common.Messaging using the Ebolito engagement ID as the correlation ID. That preserves one coherent Ebolito history even when delivery occurs through another system.
+
+Currently supported Common.Messaging providers used by Ebolito are:
+
+- Slack;
+- Microsoft Teams;
+- SMTP email;
+- SMS.
+
+Slack supports both individual DMs and business-channel routing through generic `MessageRequest.Metadata["slack.channel"]`. The corresponding Common.Messaging change is isolated in PR #3 in that repository.
+
+A provider-neutral WhatsApp channel is being added separately in Common.Messaging PR #4. Until that shared provider is merged into the local Common workspace, Ebolito does not advertise WhatsApp as a production-capable transport even though WhatsApp remains a valid Ebolito routing-policy channel.
+
+### Channel configuration
+
+No provider credentials are stored in `appsettings.json`. The file contains enablement, non-secret settings and secret names only.
+
+Example enablement keys:
+
+```text
+Messaging__Slack__Enabled=true
+Messaging__Teams__Enabled=true
+Messaging__Email__Enabled=true
+Messaging__Sms__Enabled=true
+```
+
+The environment fallback secret resolver converts configured secret names to uppercase environment names, replacing punctuation with `_`. Examples:
+
+```text
+MESSAGING_SLACK_BOT_TOKEN=...
+MESSAGING_TEAMS_WEBHOOK_URL=...
+MESSAGING_SMTP_USERNAME=...
+MESSAGING_SMTP_PASSWORD=...
+MESSAGING_SMS_ENDPOINT=...
+MESSAGING_SMS_API_TOKEN=...
+```
+
+Where Common.Secrets/OpenBao is registered for Common.Messaging, it should remain the preferred credential source.
+
+## Professional/business notification policy
+
+Notification policy is persisted independently from the professional profile. Changing Slack/Teams/SMS/etc. routing does not change profile/business data.
+
+The protected operational API currently provides:
+
+```text
+GET /api/admin/messaging/capabilities
+GET /api/admin/professionals/{id}/notification-policy
+PUT /api/admin/professionals/{id}/notification-policy
+```
+
+Access requires:
+
+```text
+X-Ebolito-Profile-Admin-Key: <key>
+EBOLITO_PROFILE_ADMIN_KEY=<key>
+```
+
+This is a commissioning/administration boundary until full professional self-service authentication is added.
+
+Policy validation ensures that Ebolito in-app remains the canonical first notification and that external primary/business/fallback channels have valid enabled endpoints. Escalation intervals can be configured from 1 minute to 24 hours.
+
+## Signed engagement actions
+
+External notifications can include **View**, **Accept** and **Decline** links. These links:
+
+- are HMAC-SHA256 signed;
+- expire (48 hours by default);
+- are verified using fixed-time comparison;
+- show a confirmation page before Accept/Decline changes Ebolito state;
+- never allow a GET request to mutate an engagement.
+
+Configure:
+
+```text
+Ebolito__PublicBaseUrl=https://ebolito.example.com
+EBOLITO_ENGAGEMENT_ACTION_KEY=<strong random signing key>
+```
+
+After the professional confirms Accept/Decline, Ebolito updates the engagement and asks Common.Messaging to notify the customer using the customer's preferred supported return channel.
+
+## Escalation
+
+`EngagementEscalationHostedService` scans unacknowledged `Delivered` engagements once per minute. It applies each professional's configured `EscalationAfter` interval, sends only the next untried channel, records each successful delivery attempt, and stops automatically after the engagement leaves `Delivered`.
 
 ## Aegis.Configuration
 
-Ebolito owns and publishes its configuration contract from:
+Ebolito packages:
 
 `Ebolito.Web/Configuration/ebolito.configuration-contract.json`
 
@@ -91,17 +185,13 @@ Aegis__Configuration__Url=https://<configuration-host>
 AEGIS_CONFIGURATION_REGISTRATION_KEY=<per-application registration secret>
 ```
 
-At startup Ebolito best-effort publishes the contract to:
+Ebolito best-effort publishes the contract to `POST /api/contracts/register` using `X-Configuration-Registration-Key`. Publication failure never blocks startup.
 
-`POST /api/contracts/register`
-
-using `X-Configuration-Registration-Key`. Registration failure is logged but never prevents Ebolito from starting or operating.
-
-The contract declares PostgreSQL, Common.Messaging and Common.Diagnostics requirements. Secret values are not stored in the contract or `appsettings.json`.
+The contract currently declares PostgreSQL, the public base URL, Common.Messaging and Common.Diagnostics. Environment-only machine credentials are verified by Ebolito diagnostics until they are explicitly migrated to Common.Secrets-backed runtime resolution.
 
 ## Aegis.Diagnostics protocol
 
-Ebolito exposes the uniform application protocol expected by Aegis.Diagnostics:
+Ebolito exposes:
 
 ```text
 GET  /health
@@ -113,30 +203,25 @@ GET  /api/engineering/diagnostics/runs/{runId}
 POST /api/engineering/diagnostics/runs/{runId}/resolve
 ```
 
-Machine diagnostics use:
+Machine diagnostics require:
 
 ```text
 X-Aegis-Diagnostics-Key: <key>
-```
-
-with the server-side key supplied only through:
-
-```text
 EBOLITO_DIAGNOSTICS_KEY=<key>
 ```
 
-The diagnostics wire format mirrors Common.Diagnostics. The current implementation is local to Ebolito until the shared Common.Diagnostics project/package is pulled into the same workspace; it should ultimately be replaced by the shared contract rather than maintained as a fork.
+Diagnostics report PostgreSQL connectivity, marketplace read health, whether Common.Messaging was compiled into the flat workspace, enabled transport channels, SMS verification readiness, signed-action readiness and missing machine credentials.
 
-## Common.Messaging boundary
+## CI and validation
 
-Ebolito does not depend directly on Meta, Twilio or another delivery provider. `IEngagementNotifier` owns the application boundary for:
+`.github/workflows/ci.yml` restores/builds the .NET 10 web host and runs `Ebolito.Tests` on pushes and pull requests.
 
-- sending an engagement to the professional;
-- WhatsApp/SMS/Web fallback selection;
-- notifying the customer when the professional responds.
+Ebolito CI has completed successfully on the resurrection branch. Common.Messaging PR #3 (Slack business-channel delivery) has also completed its CI successfully. Newer commits should remain subject to the same CI before merge.
 
-The current fallback adapter models routing but does not perform production external delivery. The intended production implementation is an adapter over Common.Messaging.
+## Still intentionally incomplete
 
-## Current validation status
-
-The branch includes automated tests and has undergone a static compile-risk pass, but **a real `dotnet restore`, `dotnet build` and `dotnet test` run has not yet been executed in this session** because the execution container cannot resolve GitHub. Keep the resurrection PR in draft until that build is run in a normal clone/workspace or CI.
+- Full professional self-service authentication/profile editor.
+- Portfolio image upload/storage UI.
+- Verified reviews generated automatically from completed engagements.
+- Common.Messaging WhatsApp PR #4 must land before Ebolito enables that provider in production.
+- Push, webhook, Messenger and Instagram remain policy concepts until corresponding Common.Messaging providers exist.
