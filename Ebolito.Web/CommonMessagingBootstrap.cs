@@ -4,6 +4,7 @@ using Common.Messaging.Channels.Slack;
 using Common.Messaging.Channels.Sms;
 using Common.Messaging.Channels.Smtp;
 using Common.Messaging.Channels.Teams;
+using Common.Messaging.Channels.WhatsApp;
 using Common.Messaging.Hosting;
 using Ebolito.Application;
 using Ebolito.Domain;
@@ -74,8 +75,15 @@ public static class CommonMessagingBootstrap
             services.AddSingleton<IMobileVerificationSender, CommonMessagingMobileVerificationSender>();
         }
 
-        // Common.Messaging currently defines WhatsApp in MessageChannel but has no concrete provider.
-        // Ebolito will skip WhatsApp in production routing until that provider is registered.
+        if (configuration.GetValue("Messaging:WhatsApp:Enabled", false))
+        {
+            services.AddWhatsAppMessagingChannel(new WhatsAppMessageOptions
+            {
+                EndpointSecretName = configuration["Messaging:WhatsApp:EndpointSecretName"] ?? "messaging/whatsapp/endpoint",
+                ApiTokenSecretName = configuration["Messaging:WhatsApp:ApiTokenSecretName"] ?? "messaging/whatsapp/api-token"
+            });
+            supported.Add(EngagementChannel.WhatsApp);
+        }
 
         services.AddSingleton<IReadOnlySet<EngagementChannel>>(supported);
         services.AddSingleton<IEngagementNotifier>(provider => new CommonMessagingEngagementNotifier(
