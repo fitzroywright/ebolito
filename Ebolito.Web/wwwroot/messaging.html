@@ -13,21 +13,15 @@
   <main class="shell">
     <h1>Professional Messaging Policy</h1>
     <p>Ebolito owns routing policy. Common.Messaging owns transport. In-app Ebolito delivery remains canonical and does not need to be configured here.</p>
-
     <section class="card">
       <div class="grid">
         <label>Professional ID<input data-professional-id placeholder="Professional GUID"></label>
-        <label>Administration key<input data-admin-key type="password" autocomplete="current-password"></label>
+        <label>Administration key <small>(commissioning fallback)</small><input data-admin-key type="password" autocomplete="current-password"></label>
       </div>
-      <div class="actions"><button type="button" data-load>Load policy</button><a href="/inbox.html">Engagement inbox</a><a href="/manage.html">Profile management</a></div>
+      <div class="actions"><button type="button" data-load>Load policy</button><a href="/professional-login.html">Professional sign in</a><a href="/inbox.html">Engagement inbox</a><a href="/manage.html">Profile management</a></div>
       <p data-global-status></p>
     </section>
-
-    <section class="card">
-      <h2>Transport capabilities</h2>
-      <div class="capabilities" data-capabilities><p>Load policy to inspect deployment capabilities.</p></div>
-    </section>
-
+    <section class="card"><h2>Transport capabilities</h2><div class="capabilities" data-capabilities><p>Load policy to inspect deployment capabilities.</p></div></section>
     <section class="card">
       <h2>Routing policy</h2>
       <form data-policy-form>
