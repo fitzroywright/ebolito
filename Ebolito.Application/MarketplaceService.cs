@@ -32,6 +32,7 @@ public interface IMarketplaceStore
     Task SaveCustomerAsync(CustomerIdentity customer, CancellationToken cancellationToken = default);
     Task SaveEngagementAsync(Engagement engagement, CancellationToken cancellationToken = default);
     Task<Engagement?> GetEngagementAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<Engagement>> GetEngagementsForProfessionalAsync(Guid professionalId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Engagement>> GetUnacknowledgedEngagementsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default);
     Task<ProfessionalNotificationPolicy> GetNotificationPolicyAsync(Guid professionalId, CancellationToken cancellationToken = default);
     Task SaveNotificationPolicyAsync(ProfessionalNotificationPolicy policy, CancellationToken cancellationToken = default);
@@ -125,12 +126,10 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
         if (request.Rating is < 1 or > 5) throw new ArgumentException("Rating must be between 1 and 5.", nameof(request));
         if (string.IsNullOrWhiteSpace(request.Comment)) throw new ArgumentException("Review comment is required.", nameof(request));
         if (request.Comment.Trim().Length > 4000) throw new ArgumentException("Review comment may not exceed 4000 characters.", nameof(request));
-
         var engagement = await store.GetEngagementAsync(request.EngagementId, cancellationToken) ?? throw new InvalidOperationException("Engagement not found.");
         if (engagement.CustomerId != request.CustomerId) throw new InvalidOperationException("Only the customer who created this engagement can review it.");
         if (engagement.Status != EngagementStatus.Completed) throw new InvalidOperationException("A verified review can only be submitted after the engagement is completed.");
         if (await store.GetReviewByEngagementAsync(engagement.Id, cancellationToken) is not null) throw new InvalidOperationException("This engagement has already been reviewed.");
-
         var customer = await store.GetCustomerAsync(request.CustomerId, cancellationToken) ?? throw new InvalidOperationException("Verified customer identity not found.");
         var review = new Review(Guid.NewGuid(), engagement.ProfessionalId, engagement.Id, customer.DisplayName, request.Rating, request.Comment.Trim(), DateTimeOffset.UtcNow, true);
         await store.SaveReviewAsync(review, cancellationToken);
