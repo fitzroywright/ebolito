@@ -180,13 +180,19 @@ public sealed class EbolitoEngineeringDiagnostics(
             {
                 var endpointSecretName = configuration["Messaging:WhatsApp:EndpointSecretName"] ?? "messaging/whatsapp/endpoint";
                 var tokenSecretName = configuration["Messaging:WhatsApp:ApiTokenSecretName"] ?? "messaging/whatsapp/api-token";
+#if COMMON_MESSAGING
                 checks.Add(new(
                     "messaging.whatsapp-provider",
                     "WhatsApp provider",
-                    commonMessagingCompiled ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.InterventionRequired,
-                    commonMessagingCompiled
-                        ? $"Common.Messaging WhatsApp provider is compiled. Configure gateway secrets '{endpointSecretName}' and '{tokenSecretName}' in the deployment secret source."
-                        : "WhatsApp is enabled but Common.Messaging is not compiled into this deployment."));
+                    EngineeringDiagnosticStatus.Passed,
+                    $"Common.Messaging WhatsApp provider is compiled. Configure gateway secrets '{endpointSecretName}' and '{tokenSecretName}' in the deployment secret source."));
+#else
+                checks.Add(new(
+                    "messaging.whatsapp-provider",
+                    "WhatsApp provider",
+                    EngineeringDiagnosticStatus.InterventionRequired,
+                    "WhatsApp is enabled but Common.Messaging is not compiled into this deployment."));
+#endif
             }
         }
 
