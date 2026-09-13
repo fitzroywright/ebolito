@@ -27,6 +27,8 @@ public sealed record EngagementRequest(
     string Location,
     EngagementChannel PreferredChannel);
 
+public enum EngagementResponse { Accept, Decline }
+
 public interface IMarketplaceStore
 {
     Task<IReadOnlyCollection<Skill>> GetSkillsAsync(CancellationToken cancellationToken = default);
@@ -43,6 +45,7 @@ public interface IMarketplaceStore
 public interface IEngagementNotifier
 {
     Task<EngagementChannel> DeliverAsync(Professional professional, CustomerIdentity customer, Engagement engagement, CancellationToken cancellationToken = default);
+    Task NotifyCustomerAsync(CustomerIdentity customer, Professional professional, Engagement engagement, CancellationToken cancellationToken = default);
 }
 
 public interface IMarketplaceService
@@ -50,6 +53,7 @@ public interface IMarketplaceService
     Task<IReadOnlyCollection<ProfessionalCard>> SearchAsync(string? service, string? location, CancellationToken cancellationToken = default);
     Task<ProfessionalProfile?> GetProfileAsync(string slug, CancellationToken cancellationToken = default);
     Task<Engagement> RequestEngagementAsync(EngagementRequest request, CancellationToken cancellationToken = default);
+    Task<Engagement> RespondToEngagementAsync(Guid engagementId, EngagementResponse response, CancellationToken cancellationToken = default);
 }
 
 public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotifier notifier) : IMarketplaceService
@@ -134,6 +138,23 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
         var deliveredChannel = await notifier.DeliverAsync(professional, customer, engagement, cancellationToken);
         engagement.MarkDelivered(deliveredChannel);
         await store.SaveEngagementAsync(engagement, cancellationToken);
+        return engagement;
+    }
+
+    public async Task<Engagement> RespondToEngagementAsync(Guid engagementId, EngagementResponse response, CancellationToken cancellationToken = default)
+    {
+        var engagement = await store.GetEngagementAsync(engagementId, cancellationToken)
+            ?? throw new InvalidOperationException("Engagement not found.");
+        var professional = await store.GetProfessionalAsync(engagement.ProfessionalId, cancellationToken)
+            ?? throw new InvalidOperationException("Professional not found.");
+        var customer = await store.GetCustomerAsync(engagement.CustomerId, cancellationToken)
+            ?? throw new InvalidOperationException("Customer not found.");
+
+        if (response == EngagementResponse.Accept) engagement.Accept();
+        else engagement.Decline();
+
+        await store.SaveEngagementAsync(engagement, cancellationToken);
+        await notifier.NotifyCustomerAsync(customer, professional, engagement, cancellationToken);
         return engagement;
     }
 }
