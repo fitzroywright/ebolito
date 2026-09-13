@@ -76,6 +76,19 @@ public sealed class EbolitoEngineeringDiagnostics(
             {
                 checks.Add(new("database.connectivity", "PostgreSQL connectivity", EngineeringDiagnosticStatus.Warning, "PostgreSQL is not configured; development memory store is active."));
             }
+
+#if COMMON_MESSAGING
+            const bool commonMessagingCompiled = true;
+#else
+            const bool commonMessagingCompiled = false;
+#endif
+            checks.Add(new(
+                "messaging.common",
+                "Common.Messaging workspace integration",
+                commonMessagingCompiled ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.Warning,
+                commonMessagingCompiled
+                    ? "Common.Messaging is present in the flat workspace and the production adapter is compiled."
+                    : "Common.Messaging was not present at build time; Ebolito is using its deterministic fallback adapter."));
         }
 
         if (level <= 3)
@@ -90,6 +103,15 @@ public sealed class EbolitoEngineeringDiagnostics(
             {
                 checks.Add(new("marketplace.read", "Marketplace read path", EngineeringDiagnosticStatus.Failed, "Marketplace read path failed.", ex.GetType().Name));
             }
+
+            var enabledChannels = new[] { "Slack", "Teams", "Email", "Sms" }
+                .Where(name => configuration.GetValue($"Messaging:{name}:Enabled", false))
+                .ToArray();
+            checks.Add(new(
+                "messaging.channels",
+                "External channel configuration",
+                enabledChannels.Length > 0 ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.Warning,
+                enabledChannels.Length > 0 ? $"Enabled channels: {string.Join(", ", enabledChannels)}." : "No production external messaging channels are enabled."));
         }
 
         if (level <= 2)
@@ -97,14 +119,40 @@ public sealed class EbolitoEngineeringDiagnostics(
             var configurationUrl = configuration["Aegis:Configuration:Url"];
             checks.Add(new("configuration.registration", "Aegis.Configuration registration", string.IsNullOrWhiteSpace(configurationUrl) ? EngineeringDiagnosticStatus.Warning : EngineeringDiagnosticStatus.Passed, string.IsNullOrWhiteSpace(configurationUrl) ? "Aegis.Configuration URL is not configured; self-registration is disabled." : "Aegis.Configuration URL is configured for best-effort self-registration."));
 
-            var verificationReady = environment.IsDevelopment() || !string.IsNullOrWhiteSpace(configuration["Messaging:Provider"]);
-            checks.Add(new("messaging.verification", "Mobile verification delivery", verificationReady ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.InterventionRequired, verificationReady ? "Mobile verification has an available delivery mode." : "Production mobile verification is intentionally disabled until Common.Messaging/SMS is configured."));
+            var smsEnabled = configuration.GetValue("Messaging:Sms:Enabled", false);
+            var verificationReady = environment.IsDevelopment() || smsEnabled;
+            checks.Add(new("messaging.verification", "Mobile verification delivery", verificationReady ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.InterventionRequired, verificationReady ? (environment.IsDevelopment() && !smsEnabled ? "Development verification sender is active." : "Common.Messaging SMS delivery is enabled for mobile verification.") : "Production mobile verification is disabled until Common.Messaging SMS is configured."));
+
+            var publicBaseUrl = configuration["Ebolito:PublicBaseUrl"];
+            var actionKeyPresent = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("EBOLITO_ENGAGEMENT_ACTION_KEY"));
+            var linksReady = !string.IsNullOrWhiteSpace(publicBaseUrl) && actionKeyPresent;
+            checks.Add(new(
+                "engagement.action-links",
+                "Signed engagement action links",
+                linksReady ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.Warning,
+                linksReady ? "Signed expiring View/Accept/Decline links are available for external notifications." : "Set Ebolito:PublicBaseUrl and EBOLITO_ENGAGEMENT_ACTION_KEY to enable signed external action links."));
+
+            if (configuration.GetValue("Messaging:WhatsApp:Enabled", false))
+            {
+                checks.Add(new(
+                    "messaging.whatsapp-provider",
+                    "WhatsApp provider",
+                    EngineeringDiagnosticStatus.InterventionRequired,
+                    "WhatsApp is enabled in Ebolito configuration, but Common.Messaging does not yet contain a concrete WhatsApp provider."));
+            }
         }
 
         if (level <= 1)
         {
             var diagnosticsKeyPresent = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("EBOLITO_DIAGNOSTICS_KEY"));
             checks.Add(new("security.diagnostics-key", "Diagnostics machine credential", diagnosticsKeyPresent ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.InterventionRequired, diagnosticsKeyPresent ? "EBOLITO_DIAGNOSTICS_KEY is configured." : "EBOLITO_DIAGNOSTICS_KEY is missing."));
+
+            var actionKey = Environment.GetEnvironmentVariable("EBOLITO_ENGAGEMENT_ACTION_KEY");
+            checks.Add(new(
+                "security.engagement-action-key",
+                "Engagement action signing credential",
+                string.IsNullOrWhiteSpace(actionKey) ? EngineeringDiagnosticStatus.InterventionRequired : EngineeringDiagnosticStatus.Passed,
+                string.IsNullOrWhiteSpace(actionKey) ? "EBOLITO_ENGAGEMENT_ACTION_KEY is missing." : "Engagement action links have a signing credential."));
         }
 
         var status = Aggregate(checks);
