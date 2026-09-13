@@ -74,7 +74,11 @@
     try {
       const id = requireAccess();
       const data = await readResponse(await fetch(`/api/admin/professionals/${encodeURIComponent(id)}/site`, { headers: headers(false) }));
-      setProfile(data.professional); loadedProjects = data.projects || []; renderProjects(); globalStatus.textContent = `Loaded ${data.professional.displayName}.`;
+      setProfile(data.professional); loadedProjects = data.projects || []; renderProjects();
+      const onboarding = new URLSearchParams(location.search).get('onboarding') === '1';
+      globalStatus.textContent = onboarding && !data.professional.isScreened
+        ? `Welcome ${data.professional.displayName}. Complete your profile and portfolio; your listing remains private until screening is approved.`
+        : `Loaded ${data.professional.displayName}.`;
     } catch (error) { globalStatus.textContent = error.message; }
   }
 
@@ -85,7 +89,7 @@
       const id = requireAccess();
       const payload = { slug: profileForm.slug.value.trim(), displayName: profileForm.displayName.value.trim(), businessName: profileForm.businessName.value.trim() || null, headline: profileForm.headline.value.trim(), about: profileForm.about.value.trim(), phoneNumber: profileForm.phoneNumber.value.trim() || null, whatsAppNumber: profileForm.whatsAppNumber.value.trim() || null, skillIds: parseSkillIds(profileForm.skillIds.value), serviceAreas: parseAreas(profileForm.serviceAreas.value), isActive: profileForm.isActive.checked };
       const saved = await readResponse(await fetch(`/api/admin/professionals/${encodeURIComponent(id)}/site`, { method: 'PUT', headers: headers(), body: JSON.stringify(payload) }));
-      setProfile(saved); status.textContent = 'Profile saved.';
+      setProfile(saved); status.textContent = saved.isScreened ? 'Profile saved.' : 'Profile saved. It remains private until screening is approved.';
     } catch (error) { status.textContent = error.message; }
   });
 
@@ -121,7 +125,10 @@
   function clearProject() { projectForm.reset(); projectForm.id.value = ''; $('[data-project-status]').textContent = ''; }
   $('[data-clear-project]').addEventListener('click', clearProject);
 
+  const params = new URLSearchParams(location.search);
+  const queryId = params.get('professionalId');
   const remembered = localStorage.getItem('ebolito.professionalId');
-  if (remembered) professionalId.value = remembered;
-  if (remembered && localStorage.getItem('ebolito.professionalSession')) loadSite();
+  if (queryId) professionalId.value = queryId;
+  else if (remembered) professionalId.value = remembered;
+  if ((queryId && adminKey.value.trim()) || (remembered && localStorage.getItem('ebolito.professionalSession'))) loadSite();
 })();
