@@ -133,16 +133,24 @@ Normal professional profile, inbox and messaging workflows can use `X-Ebolito-Pr
 
 **Ebolito owns routing policy; Common.Messaging owns transport.**
 
-Currently production-capable Ebolito transports depend on the available Common.Messaging workspace providers, including:
+Production-capable Ebolito transports available through the current Common.Messaging workspace include:
 
 - Slack
 - Microsoft Teams
 - SMTP email
 - SMS
+- WhatsApp through the provider-neutral gateway adapter
 
 Slack business-channel delivery is supported without making Slack the system of record.
 
-The provider-neutral WhatsApp implementation remains isolated in **Common.Messaging PR #4**. Ebolito keeps WhatsApp as a routing-policy concept but should not advertise it as production-capable until that shared provider is merged and deployed.
+The provider-neutral WhatsApp implementation from Common.Messaging PR #4 has been merged into Common.Messaging `main`. Ebolito can register it when `Messaging:WhatsApp:Enabled=true`. Deployment still needs the configured WhatsApp gateway endpoint and optional API token through Common.Secrets/OpenBao or the environment fallback resolver.
+
+Default WhatsApp secret names:
+
+```text
+messaging/whatsapp/endpoint
+messaging/whatsapp/api-token
+```
 
 Push, webhook, Messenger and Instagram remain policy concepts until Common.Messaging provides concrete transports.
 
@@ -205,7 +213,7 @@ EBOLITO_DIAGNOSTICS_KEY=<strong random value>
 X-Aegis-Diagnostics-Key: <same value>
 ```
 
-Diagnostics cover PostgreSQL, marketplace reads, Common.* integration, portfolio storage, messaging channels, mobile verification readiness, engagement-action signing, customer-session signing, professional-session signing and machine credentials.
+Diagnostics cover PostgreSQL, marketplace reads, Common.* integration, portfolio storage, messaging channels including WhatsApp capability, mobile verification readiness, engagement-action signing, customer-session signing, professional-session signing and machine credentials.
 
 ## CI
 
@@ -215,10 +223,10 @@ Diagnostics cover PostgreSQL, marketplace reads, Common.* integration, portfolio
 
 The major Ebolito product loops are now implemented. Remaining work is primarily deployment/integration rather than missing marketplace workflow:
 
-- merge/deploy the Common.Messaging WhatsApp provider before enabling WhatsApp in production;
 - configure production PostgreSQL, durable Common.Storage and OpenBao/Common.Secrets;
 - configure real SMS delivery for customer/professional OTP;
-- configure Slack/Teams/email/SMS credentials and execute end-to-end delivery tests;
+- configure Slack/Teams/email/SMS/WhatsApp credentials and execute end-to-end delivery tests;
+- configure the WhatsApp gateway or BSP bridge behind the provider-neutral Common.Messaging adapter before enabling it;
 - register the production instance with Aegis.Configuration and Aegis.Diagnostics;
 - restore the original legacy header binary asset if the exact Wayback appearance is required;
 - add future Common.Messaging providers for push/webhook/Messenger/Instagram only when there is a real product need.
