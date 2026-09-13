@@ -5,6 +5,7 @@ namespace Ebolito.Application;
 public sealed record ProfessionalCard(Guid Id, string Slug, string DisplayName, string Headline, string Location, double Rating, int ReviewCount, bool IsScreened);
 public sealed record ProfessionalProfile(Professional Professional, IReadOnlyCollection<Skill> Skills, IReadOnlyCollection<PortfolioProject> Projects, IReadOnlyCollection<Review> Reviews, double Rating);
 public sealed record EngagementRequest(Guid ProfessionalId, Guid CustomerId, Guid? SkillId, string RequestText, string Location, EngagementChannel CustomerPreferredContactChannel = EngagementChannel.WhatsApp);
+public sealed record VerifiedReviewRequest(Guid EngagementId, Guid CustomerId, int Rating, string Comment);
 public enum EngagementResponse { Accept, Decline }
 
 public interface IEngagementActionLinkBuilder
@@ -24,6 +25,8 @@ public interface IMarketplaceStore
     Task SavePortfolioProjectAsync(PortfolioProject project, CancellationToken cancellationToken = default);
     Task<bool> DeletePortfolioProjectAsync(Guid professionalId, Guid projectId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Review>> GetReviewsAsync(Guid professionalId, CancellationToken cancellationToken = default);
+    Task<Review?> GetReviewByEngagementAsync(Guid engagementId, CancellationToken cancellationToken = default);
+    Task SaveReviewAsync(Review review, CancellationToken cancellationToken = default);
     Task<CustomerIdentity?> GetCustomerAsync(Guid id, CancellationToken cancellationToken = default);
     Task<CustomerIdentity?> GetCustomerByMobileAsync(string mobileNumber, CancellationToken cancellationToken = default);
     Task SaveCustomerAsync(CustomerIdentity customer, CancellationToken cancellationToken = default);
@@ -49,6 +52,7 @@ public interface IMarketplaceService
     Task<Engagement> RequestEngagementAsync(EngagementRequest request, CancellationToken cancellationToken = default);
     Task<Engagement> RespondToEngagementAsync(Guid engagementId, EngagementResponse response, CancellationToken cancellationToken = default);
     Task<bool> EscalateEngagementAsync(Guid engagementId, CancellationToken cancellationToken = default);
+    Task<Review> SubmitVerifiedReviewAsync(VerifiedReviewRequest request, CancellationToken cancellationToken = default);
 }
 
 public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotifier notifier) : IMarketplaceService
@@ -114,6 +118,25 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
         var professional = await store.GetProfessionalAsync(engagement.ProfessionalId, cancellationToken);
         var customer = await store.GetCustomerAsync(engagement.CustomerId, cancellationToken);
         return professional is not null && customer is not null && await DeliverAndRecordAsync(professional, customer, engagement, cancellationToken);
+    }
+
+    public async Task<Review> SubmitVerifiedReviewAsync(VerifiedReviewRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.Rating is < 1 or > 5) throw new ArgumentException("Rating must be between 1 and 5.", nameof(request));
+        if (string.IsNullOrWhiteSpace(request.Comment)) throw new ArgumentException("Review comment is required.", nameof(request));
+        if (request.Comment.Trim().Length > 4000) throw new ArgumentException("Review comment may not exceed 4000 characters.", nameof(request));
+
+        var engagement = await store.GetEngagementAsync(request.EngagementId, cancellationToken) ?? throw new InvalidOperationException("Engagement not found.");
+        if (engagement.CustomerId != request.CustomerId) throw new InvalidOperationException("Only the customer who created this engagement can review it.");
+        if (engagement.Status != EngagementStatus.Completed) throw new InvalidOperationException("A verified review can only be submitted after the engagement is completed.");
+        if (await store.GetReviewByEngagementAsync(engagement.Id, cancellationToken) is not null) throw new InvalidOperationException("This engagement has already been reviewed.");
+
+        var customer = await store.GetCustomerAsync(request.CustomerId, cancellationToken) ?? throw new InvalidOperationException("Verified customer identity not found.");
+        var review = new Review(Guid.NewGuid(), engagement.ProfessionalId, engagement.Id, customer.DisplayName, request.Rating, request.Comment.Trim(), DateTimeOffset.UtcNow, true);
+        await store.SaveReviewAsync(review, cancellationToken);
+        engagement.MarkReviewed();
+        await store.SaveEngagementAsync(engagement, cancellationToken);
+        return review;
     }
 
     private async Task<bool> DeliverAndRecordAsync(Professional professional, CustomerIdentity customer, Engagement engagement, CancellationToken cancellationToken)
