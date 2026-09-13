@@ -42,3 +42,9 @@ public sealed class DevelopmentMobileVerificationSender : IMobileVerificationSen
         return Task.CompletedTask;
     }
 }
+
+public sealed class DisabledMobileVerificationSender : IMobileVerificationSender
+{
+    public Task SendCodeAsync(string mobileNumber, string code, CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("Mobile verification delivery is not configured. Configure Common.Messaging/SMS before enabling production verification.");
+}
