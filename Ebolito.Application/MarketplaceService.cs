@@ -65,7 +65,7 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
         var skills = await store.GetSkillsAsync(cancellationToken);
         var skillLookup = skills.ToDictionary(x => x.Id);
         var results = new List<ProfessionalCard>();
-        foreach (var professional in professionals.Where(x => x.IsActive))
+        foreach (var professional in professionals.Where(x => x.IsActive && x.IsScreened))
         {
             if (!string.IsNullOrWhiteSpace(service))
             {
@@ -77,13 +77,13 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
             var reviews = await store.GetReviewsAsync(professional.Id, cancellationToken);
             results.Add(new ProfessionalCard(professional.Id, professional.Slug, professional.DisplayName, professional.Headline, professional.ServiceAreas.FirstOrDefault()?.ToString() ?? "Jamaica", reviews.Count == 0 ? 0 : Math.Round(reviews.Average(x => x.Rating), 1), reviews.Count, professional.IsScreened));
         }
-        return results.OrderByDescending(x => x.IsScreened).ThenByDescending(x => x.Rating).ThenBy(x => x.DisplayName).ToArray();
+        return results.OrderByDescending(x => x.Rating).ThenBy(x => x.DisplayName).ToArray();
     }
 
     public async Task<ProfessionalProfile?> GetProfileAsync(string slug, CancellationToken cancellationToken = default)
     {
         var professional = await store.GetProfessionalBySlugAsync(slug, cancellationToken);
-        if (professional is null || !professional.IsActive) return null;
+        if (professional is null || !professional.IsActive || !professional.IsScreened) return null;
         var skills = (await store.GetSkillsAsync(cancellationToken)).Where(x => professional.SkillIds.Contains(x.Id)).ToArray();
         var projects = await store.GetProjectsAsync(professional.Id, cancellationToken);
         var reviews = await store.GetReviewsAsync(professional.Id, cancellationToken);
@@ -93,6 +93,7 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
     public async Task<Engagement> RequestEngagementAsync(EngagementRequest request, CancellationToken cancellationToken = default)
     {
         var professional = await store.GetProfessionalAsync(request.ProfessionalId, cancellationToken) ?? throw new InvalidOperationException("Professional not found.");
+        if (!professional.IsActive || !professional.IsScreened) throw new InvalidOperationException("Professional is not available for marketplace engagements.");
         var customer = await store.GetCustomerAsync(request.CustomerId, cancellationToken) ?? throw new InvalidOperationException("Verified customer identity is required before an engagement can be sent.");
         if (string.IsNullOrWhiteSpace(request.RequestText)) throw new ArgumentException("Request text is required.", nameof(request));
         if (string.IsNullOrWhiteSpace(request.Location)) throw new ArgumentException("Location is required.", nameof(request));
