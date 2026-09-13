@@ -7,6 +7,12 @@ public sealed record ProfessionalProfile(Professional Professional, IReadOnlyCol
 public sealed record EngagementRequest(Guid ProfessionalId, Guid CustomerId, Guid? SkillId, string RequestText, string Location, EngagementChannel CustomerPreferredContactChannel = EngagementChannel.WhatsApp);
 public enum EngagementResponse { Accept, Decline }
 
+public interface IEngagementActionLinkBuilder
+{
+    string? BuildViewLink(Guid engagementId);
+    string? BuildResponseLink(Guid engagementId, EngagementResponse response);
+}
+
 public interface IMarketplaceStore
 {
     Task<IReadOnlyCollection<Skill>> GetSkillsAsync(CancellationToken cancellationToken = default);
