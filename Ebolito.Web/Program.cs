@@ -43,6 +43,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapProfessionalAccessEndpoints();
 app.MapProfessionalRegistrationEndpoints();
+app.MapProfessionalScreeningEndpoints();
 app.MapProfessionalNotificationPolicyEndpoints();
 app.MapVerifiedReviewEndpoints();
 app.MapEngagementManagementEndpoints();
