@@ -1,0 +1,35 @@
+{
+  "applicationId": "Ebolito",
+  "displayName": "Ebolito Skills & Services",
+  "version": "1.0",
+  "requirements": [
+    {
+      "id": "database",
+      "displayName": "Ebolito PostgreSQL Database",
+      "kind": "ExternalService",
+      "required": true,
+      "purpose": "Stores professionals, portfolios, reviews, verified customer identities and engagement state.",
+      "configurationKey": "ConnectionStrings:Ebolito",
+      "validator": "postgresql",
+      "instructionId": "postgresql.ebolito"
+    },
+    {
+      "id": "messaging",
+      "displayName": "Common.Messaging",
+      "kind": "ExternalService",
+      "required": true,
+      "purpose": "Delivers engagement requests, customer responses and mobile verification through WhatsApp/SMS with fallback behavior.",
+      "validator": "configured",
+      "instructionId": "common.messaging"
+    },
+    {
+      "id": "diagnostics",
+      "displayName": "Common.Diagnostics",
+      "kind": "Diagnostic",
+      "required": true,
+      "purpose": "Provides bounded operational verification for marketplace, database, identity and messaging health.",
+      "validator": "diagnostics",
+      "instructionId": "common.diagnostics"
+    }
+  ]
+}
