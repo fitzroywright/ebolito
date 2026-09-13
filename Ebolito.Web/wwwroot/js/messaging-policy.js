@@ -42,6 +42,15 @@
     return found[1];
   }
 
+  function durationMinutes(value) {
+    if (typeof value === 'number') return value;
+    if (value && typeof value.totalMinutes === 'number') return value.totalMinutes;
+    if (typeof value !== 'string') return 10;
+    const match = value.match(/^(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
+    if (!match) return 10;
+    return (Number(match[1] || 0) * 24 * 60) + (Number(match[2]) * 60) + Number(match[3]) + (Number(match[4]) / 60);
+  }
+
   function renderCapabilities(data) {
     const configured = data.configured || {};
     capabilitiesHost.innerHTML = Object.entries(configured).map(([name, enabled]) => `<div class="cap ${enabled ? 'on' : 'off'}"><strong>${name}</strong><br>${enabled ? 'Enabled' : 'Not enabled'}</div>`).join('');
@@ -52,7 +61,7 @@
     form.primaryChannel.value = String(policy.primaryChannel);
     form.businessChannel.value = policy.businessChannel == null ? '' : String(policy.businessChannel);
     form.fallbackChannel.value = String(policy.fallbackChannel);
-    form.escalationAfterMinutes.value = Math.max(1, Math.round((policy.escalationAfter?.totalMinutes ?? policy.escalationAfterMinutes ?? 10)));
+    form.escalationAfterMinutes.value = Math.max(1, Math.round(durationMinutes(policy.escalationAfter ?? policy.escalationAfterMinutes)));
     form.escalationOrder.value = (policy.escalationOrder || []).map(channelLabel).join(', ');
     form.endpoints.value = (policy.endpoints || []).map(x => `${channelLabel(x.channel)}|${x.address}|${x.label || ''}|${x.enabled !== false}`).join('\n');
   }
@@ -65,12 +74,7 @@
     return value.split(/\r?\n/).map(x => x.trim()).filter(Boolean).map(line => {
       const [channel, address, label, enabled] = line.split('|').map(x => x.trim());
       if (!channel || !address) throw new Error(`Invalid endpoint line: ${line}`);
-      return {
-        channel: channelValue(channel),
-        address,
-        label: label || null,
-        enabled: enabled === '' || enabled == null ? true : !['false', '0', 'no', 'off'].includes(enabled.toLowerCase())
-      };
+      return { channel: channelValue(channel), address, label: label || null, enabled: enabled === '' || enabled == null ? true : !['false', '0', 'no', 'off'].includes(enabled.toLowerCase()) };
     });
   }
 
@@ -87,9 +91,7 @@
       renderCapabilities(capabilities);
       setPolicy(policy);
       globalStatus.textContent = 'Messaging policy loaded.';
-    } catch (error) {
-      globalStatus.textContent = error.message;
-    }
+    } catch (error) { globalStatus.textContent = error.message; }
   }
 
   form.addEventListener('submit', async event => {
@@ -106,14 +108,10 @@
         escalationOrder: parseOrder(form.escalationOrder.value),
         endpoints: parseEndpoints(form.endpoints.value)
       };
-      const saved = await readResponse(await fetch(`/api/admin/professionals/${encodeURIComponent(id)}/notification-policy`, {
-        method: 'PUT', headers: headers(true), body: JSON.stringify(payload)
-      }));
+      const saved = await readResponse(await fetch(`/api/admin/professionals/${encodeURIComponent(id)}/notification-policy`, { method: 'PUT', headers: headers(true), body: JSON.stringify(payload) }));
       setPolicy(saved);
       policyStatus.textContent = 'Routing policy saved.';
-    } catch (error) {
-      policyStatus.textContent = error.message;
-    }
+    } catch (error) { policyStatus.textContent = error.message; }
   });
 
   form.primaryChannel.innerHTML = optionMarkup();
