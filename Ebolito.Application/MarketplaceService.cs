@@ -28,7 +28,7 @@ public interface IMarketplaceStore
 
 public interface IEngagementNotifier
 {
-    Task<EngagementChannel?> DeliverAsync(Professional professional, CustomerIdentity customer, Engagement engagement, ProfessionalNotificationPolicy policy, IReadOnlyCollection<EngagementDeliveryAttempt> previousAttempts, CancellationToken cancellationToken = default);
+    Task<EngagementChannel> DeliverAsync(Professional professional, CustomerIdentity customer, Engagement engagement, ProfessionalNotificationPolicy policy, IReadOnlyCollection<EngagementDeliveryAttempt> previousAttempts, CancellationToken cancellationToken = default);
     Task NotifyCustomerAsync(CustomerIdentity customer, Professional professional, Engagement engagement, CancellationToken cancellationToken = default);
 }
 
@@ -49,7 +49,6 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
         var skills = await store.GetSkillsAsync(cancellationToken);
         var skillLookup = skills.ToDictionary(x => x.Id);
         var results = new List<ProfessionalCard>();
-
         foreach (var professional in professionals.Where(x => x.IsActive))
         {
             if (!string.IsNullOrWhiteSpace(service))
@@ -62,7 +61,6 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
             var reviews = await store.GetReviewsAsync(professional.Id, cancellationToken);
             results.Add(new ProfessionalCard(professional.Id, professional.Slug, professional.DisplayName, professional.Headline, professional.ServiceAreas.FirstOrDefault()?.ToString() ?? "Jamaica", reviews.Count == 0 ? 0 : Math.Round(reviews.Average(x => x.Rating), 1), reviews.Count, professional.IsScreened));
         }
-
         return results.OrderByDescending(x => x.IsScreened).ThenByDescending(x => x.Rating).ThenBy(x => x.DisplayName).ToArray();
     }
 
@@ -82,7 +80,6 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
         var customer = await store.GetCustomerAsync(request.CustomerId, cancellationToken) ?? throw new InvalidOperationException("Verified customer identity is required before an engagement can be sent.");
         if (string.IsNullOrWhiteSpace(request.RequestText)) throw new ArgumentException("Request text is required.", nameof(request));
         if (string.IsNullOrWhiteSpace(request.Location)) throw new ArgumentException("Location is required.", nameof(request));
-
         var engagement = new Engagement { ProfessionalId = professional.Id, CustomerId = customer.Id, SkillId = request.SkillId, RequestText = request.RequestText.Trim(), Location = request.Location.Trim(), RequestedChannel = request.CustomerPreferredContactChannel };
         await store.SaveEngagementAsync(engagement, cancellationToken);
         if (!await DeliverAndRecordAsync(professional, customer, engagement, cancellationToken)) throw new InvalidOperationException("No configured notification channel can reach this professional.");
@@ -114,10 +111,9 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
         var policy = await store.GetNotificationPolicyAsync(professional.Id, cancellationToken);
         var attempts = await store.GetDeliveryAttemptsAsync(engagement.Id, cancellationToken);
         var deliveredChannel = await notifier.DeliverAsync(professional, customer, engagement, policy, attempts, cancellationToken);
-        if (deliveredChannel is null) return false;
-
-        await store.SaveDeliveryAttemptAsync(new EngagementDeliveryAttempt(Guid.NewGuid(), engagement.Id, deliveredChannel.Value, DateTimeOffset.UtcNow, true, "Delivered by configured channel router."), cancellationToken);
-        engagement.RecordDelivery(deliveredChannel.Value);
+        if (attempts.Any(x => x.Succeeded && x.Channel == deliveredChannel)) return false;
+        await store.SaveDeliveryAttemptAsync(new EngagementDeliveryAttempt(Guid.NewGuid(), engagement.Id, deliveredChannel, DateTimeOffset.UtcNow, true, "Delivered by configured channel router."), cancellationToken);
+        engagement.RecordDelivery(deliveredChannel);
         await store.SaveEngagementAsync(engagement, cancellationToken);
         return true;
     }
