@@ -1,0 +1,101 @@
+#if COMMON_MESSAGING
+using Common.Messaging;
+using Common.Messaging.Channels.Slack;
+using Common.Messaging.Channels.Sms;
+using Common.Messaging.Channels.Smtp;
+using Common.Messaging.Channels.Teams;
+using Common.Messaging.Hosting;
+using Ebolito.Application;
+using Ebolito.Domain;
+using Ebolito.Infrastructure;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+namespace Ebolito.Web;
+
+public static class CommonMessagingBootstrap
+{
+    public static void AddEbolitoCommonMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        string? postgresConnection)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        if (!string.IsNullOrWhiteSpace(postgresConnection) && configuration.GetValue("Messaging:DurableQueue", true))
+            services.AddCommonMessagingPostgreSqlDelivery(postgresConnection, "ebolito");
+        else
+            services.AddCommonMessagingQueuedDelivery(durable: false);
+
+        services.TryAddSingleton<IChannelSecretResolver, EnvironmentChannelSecretResolver>();
+
+        var supported = new HashSet<EngagementChannel>();
+
+        if (configuration.GetValue("Messaging:Slack:Enabled", false))
+        {
+            services.AddSlackMessagingChannel(new SlackMessageOptions
+            {
+                BotTokenSecretName = configuration["Messaging:Slack:BotTokenSecretName"] ?? "messaging/slack/bot-token"
+            });
+            supported.Add(EngagementChannel.Slack);
+        }
+
+        if (configuration.GetValue("Messaging:Teams:Enabled", false))
+        {
+            services.AddTeamsMessagingChannel(new TeamsMessageOptions
+            {
+                WebhookSecretName = configuration["Messaging:Teams:WebhookSecretName"] ?? "messaging/teams/webhook-url"
+            });
+            supported.Add(EngagementChannel.Teams);
+        }
+
+        if (configuration.GetValue("Messaging:Email:Enabled", false))
+        {
+            services.AddSmtpMessagingChannel(new SmtpMessageOptions
+            {
+                Host = configuration["Messaging:Email:Host"] ?? string.Empty,
+                Port = configuration.GetValue("Messaging:Email:Port", 587),
+                EnableSsl = configuration.GetValue("Messaging:Email:EnableSsl", true),
+                FromAddress = configuration["Messaging:Email:FromAddress"] ?? string.Empty,
+                UserNameSecretName = configuration["Messaging:Email:UserNameSecretName"] ?? "messaging/smtp/username",
+                PasswordSecretName = configuration["Messaging:Email:PasswordSecretName"] ?? "messaging/smtp/password"
+            });
+            supported.Add(EngagementChannel.Email);
+        }
+
+        if (configuration.GetValue("Messaging:Sms:Enabled", false))
+        {
+            services.AddSmsMessagingChannel(new SmsMessageOptions
+            {
+                EndpointSecretName = configuration["Messaging:Sms:EndpointSecretName"] ?? "messaging/sms/endpoint",
+                ApiTokenSecretName = configuration["Messaging:Sms:ApiTokenSecretName"] ?? "messaging/sms/api-token"
+            });
+            supported.Add(EngagementChannel.Sms);
+            services.AddSingleton<IMobileVerificationSender, CommonMessagingMobileVerificationSender>();
+        }
+
+        // Common.Messaging currently defines WhatsApp in MessageChannel but has no concrete provider.
+        // Ebolito will skip WhatsApp in production routing until that provider is registered.
+
+        services.AddSingleton<IReadOnlySet<EngagementChannel>>(supported);
+        services.AddSingleton<IEngagementNotifier>(provider => new CommonMessagingEngagementNotifier(
+            provider.GetRequiredService<IExternalDeliveryQueue>(),
+            provider.GetRequiredService<IReadOnlySet<EngagementChannel>>(),
+            provider.GetService<IEngagementActionLinkBuilder>()));
+    }
+}
+
+public sealed class EnvironmentChannelSecretResolver : IChannelSecretResolver
+{
+    public Task<string?> GetSecretAsync(string secretName, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(secretName)) return Task.FromResult<string?>(null);
+
+        var environmentName = new string(secretName
+            .Select(ch => char.IsLetterOrDigit(ch) ? char.ToUpperInvariant(ch) : '_')
+            .ToArray());
+
+        return Task.FromResult(Environment.GetEnvironmentVariable(environmentName));
+    }
+}
+#endif

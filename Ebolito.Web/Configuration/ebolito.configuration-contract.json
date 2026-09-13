@@ -1,0 +1,55 @@
+{
+  "applicationId": "Ebolito",
+  "displayName": "Ebolito Skills & Services",
+  "version": "1.2",
+  "requirements": [
+    {
+      "id": "database",
+      "displayName": "Ebolito PostgreSQL Database",
+      "kind": "ExternalService",
+      "required": true,
+      "purpose": "Stores professionals, portfolios, reviews, verified customer identities, engagement state, channel policies and delivery audit history.",
+      "configurationKey": "ConnectionStrings:Ebolito",
+      "validator": "postgresql",
+      "instructionId": "postgresql.ebolito"
+    },
+    {
+      "id": "public-base-url",
+      "displayName": "Ebolito Public Base URL",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Builds signed View, Accept and Decline links included in external engagement notifications.",
+      "configurationKey": "Ebolito:PublicBaseUrl",
+      "validator": "configured",
+      "instructionId": "ebolito.public-base-url"
+    },
+    {
+      "id": "portfolio-storage",
+      "displayName": "Portfolio Media Storage Root",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Provides durable Common.Storage-backed storage for professional portfolio images instead of relying on the web host's transient deployment directory.",
+      "configurationKey": "Storage:Root",
+      "validator": "configured",
+      "instructionId": "common.storage.ebolito-portfolio"
+    },
+    {
+      "id": "messaging",
+      "displayName": "Common.Messaging",
+      "kind": "ExternalService",
+      "required": true,
+      "purpose": "Owns delivery of Ebolito notifications across in-app, WhatsApp, SMS, email, Slack, Microsoft Teams and future supported channels. Ebolito remains the system of record and controls channel policy and escalation.",
+      "validator": "configured",
+      "instructionId": "common.messaging"
+    },
+    {
+      "id": "diagnostics",
+      "displayName": "Common.Diagnostics",
+      "kind": "Diagnostic",
+      "required": true,
+      "purpose": "Provides bounded operational verification for marketplace, database, identity, portfolio storage, notification routing, action-link security and messaging health. Environment-only machine credentials are checked by diagnostics until Common.Secrets integration is enabled for them.",
+      "validator": "diagnostics",
+      "instructionId": "common.diagnostics"
+    }
+  ]
+}
