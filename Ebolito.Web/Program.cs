@@ -15,6 +15,7 @@ else
 
 builder.Services.AddSingleton<SecureEngagementActionLinks>();
 builder.Services.AddSingleton<IEngagementActionLinkBuilder>(provider => provider.GetRequiredService<SecureEngagementActionLinks>());
+builder.Services.AddSingleton<CustomerSessionTokenService>();
 
 #if COMMON_MESSAGING
 builder.Services.AddEbolitoCommonMessaging(builder.Configuration, postgresConnection);
@@ -82,14 +83,33 @@ app.MapPost("/api/identity/mobile/start", async (MobileVerificationStart request
     catch (InvalidOperationException ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable); }
 });
 
-app.MapPost("/api/identity/mobile/complete", async (MobileVerificationComplete request, ICustomerIdentityService identity, CancellationToken ct) =>
+app.MapPost("/api/identity/mobile/complete", async (MobileVerificationComplete request, ICustomerIdentityService identity, CustomerSessionTokenService sessions, CancellationToken ct) =>
 {
-    try { return Results.Ok(await identity.CompleteAsync(request, ct)); }
-    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    try
+    {
+        var customer = await identity.CompleteAsync(request, ct);
+        var session = sessions.Issue(customer.Id);
+        return Results.Ok(new
+        {
+            id = customer.Id,
+            customer.DisplayName,
+            customer.VerifiedMobileNumber,
+            customer.Email,
+            sessionToken = session.Token,
+            sessionExpiresAt = session.ExpiresAt
+        });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
 });
 
-app.MapPost("/api/engagements", async (EngagementRequest request, IMarketplaceService marketplace, CancellationToken ct) =>
+app.MapPost("/api/engagements", async (HttpRequest httpRequest, EngagementRequest request, CustomerSessionTokenService sessions, IMarketplaceService marketplace, CancellationToken ct) =>
 {
+    if (!sessions.TryValidate(httpRequest, out var sessionCustomerId)) return Results.Unauthorized();
+    if (request.CustomerId != sessionCustomerId) return Results.Unauthorized();
+
     try
     {
         var engagement = await marketplace.RequestEngagementAsync(request, ct);
