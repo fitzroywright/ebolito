@@ -1,7 +1,7 @@
 {
   "applicationId": "Ebolito",
   "displayName": "Ebolito Skills & Services",
-  "version": "1.0",
+  "version": "1.1",
   "requirements": [
     {
       "id": "database",
@@ -14,11 +14,41 @@
       "instructionId": "postgresql.ebolito"
     },
     {
+      "id": "public-base-url",
+      "displayName": "Ebolito Public Base URL",
+      "kind": "Setting",
+      "required": true,
+      "purpose": "Builds signed View, Accept and Decline links included in external engagement notifications.",
+      "configurationKey": "Ebolito:PublicBaseUrl",
+      "validator": "url",
+      "instructionId": "ebolito.public-base-url"
+    },
+    {
+      "id": "engagement-action-key",
+      "displayName": "Engagement Action Signing Key",
+      "kind": "Secret",
+      "required": true,
+      "purpose": "Signs expiring external engagement action links so recipients cannot fabricate Accept or Decline actions.",
+      "secretName": "Ebolito:EngagementActionKey",
+      "validator": "secret-resolvable",
+      "instructionId": "secrets.ebolito-engagement-action-key"
+    },
+    {
+      "id": "profile-admin-key",
+      "displayName": "Profile Administration Key",
+      "kind": "Secret",
+      "required": true,
+      "purpose": "Protects professional notification-policy administration until full professional self-service authentication is commissioned.",
+      "secretName": "Ebolito:ProfileAdminKey",
+      "validator": "secret-resolvable",
+      "instructionId": "secrets.ebolito-profile-admin-key"
+    },
+    {
       "id": "messaging",
       "displayName": "Common.Messaging",
       "kind": "ExternalService",
       "required": true,
-      "purpose": "Owns delivery of Ebolito notifications across in-app, WhatsApp, SMS, email, Slack, Microsoft Teams, push, webhooks and future supported channels. Ebolito remains the system of record and controls channel policy and escalation.",
+      "purpose": "Owns delivery of Ebolito notifications across in-app, WhatsApp, SMS, email, Slack, Microsoft Teams and future supported channels. Ebolito remains the system of record and controls channel policy and escalation.",
       "validator": "configured",
       "instructionId": "common.messaging"
     },
@@ -27,7 +57,7 @@
       "displayName": "Common.Diagnostics",
       "kind": "Diagnostic",
       "required": true,
-      "purpose": "Provides bounded operational verification for marketplace, database, identity, notification routing and messaging health.",
+      "purpose": "Provides bounded operational verification for marketplace, database, identity, notification routing, action-link security and messaging health.",
       "validator": "diagnostics",
       "instructionId": "common.diagnostics"
     }
