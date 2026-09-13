@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout
+      - name: Checkout Ebolito
         uses: actions/checkout@v4
 
       - name: Setup .NET 10
@@ -44,3 +44,33 @@ jobs:
           name: ebolito-test-results
           path: '**/TestResults/*.trx'
           if-no-files-found: ignore
+
+  flat-common-workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Ebolito
+        uses: actions/checkout@v4
+
+      - name: Checkout Common.Messaging
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Messaging
+          path: Common/Common.Messaging
+
+      - name: Checkout Common.Storage
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Storage
+          path: Common/Common.Storage
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore with Common workspace
+        run: dotnet restore Ebolito.Web/Ebolito.Web.csproj -p:CommonRoot="${{ github.workspace }}/Common"
+
+      - name: Build with Common.Messaging and Common.Storage
+        run: dotnet build Ebolito.Web/Ebolito.Web.csproj --no-restore --configuration Release -p:CommonRoot="${{ github.workspace }}/Common"
