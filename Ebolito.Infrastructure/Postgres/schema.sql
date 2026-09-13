@@ -41,17 +41,6 @@ create table if not exists portfolio_projects (
   is_featured boolean not null default false
 );
 
-create table if not exists reviews (
-  id uuid primary key,
-  professional_id uuid not null references professionals(id) on delete cascade,
-  engagement_id uuid null,
-  customer_display_name text not null,
-  rating integer not null check (rating between 1 and 5),
-  comment text not null,
-  created_at timestamptz not null,
-  verified_engagement boolean not null default false
-);
-
 create table if not exists customers (
   id uuid primary key,
   display_name text not null,
@@ -73,6 +62,17 @@ create table if not exists engagements (
   updated_at timestamptz not null
 );
 
+create table if not exists reviews (
+  id uuid primary key,
+  professional_id uuid not null references professionals(id) on delete cascade,
+  engagement_id uuid null references engagements(id) on delete set null,
+  customer_display_name text not null,
+  rating integer not null check (rating between 1 and 5),
+  comment text not null,
+  created_at timestamptz not null,
+  verified_engagement boolean not null default false
+);
+
 create table if not exists engagement_delivery_attempts (
   id uuid primary key,
   engagement_id uuid not null references engagements(id) on delete cascade,
@@ -85,6 +85,7 @@ create table if not exists engagement_delivery_attempts (
 create index if not exists ix_professionals_slug on professionals(slug);
 create index if not exists ix_portfolio_professional on portfolio_projects(professional_id);
 create index if not exists ix_reviews_professional on reviews(professional_id);
+create unique index if not exists ux_reviews_engagement on reviews(engagement_id) where engagement_id is not null;
 create index if not exists ix_engagements_professional on engagements(professional_id);
 create index if not exists ix_engagements_customer on engagements(customer_id);
 create index if not exists ix_engagements_unacknowledged on engagements(status, updated_at);
