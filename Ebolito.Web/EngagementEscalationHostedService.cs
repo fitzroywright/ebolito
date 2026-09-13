@@ -8,6 +8,7 @@ public sealed class EngagementEscalationHostedService(
     ILogger<EngagementEscalationHostedService> logger) : BackgroundService
 {
     private static readonly TimeSpan ScanInterval = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan MinimumEscalationAge = TimeSpan.FromMinutes(1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -18,14 +19,15 @@ public sealed class EngagementEscalationHostedService(
                 using var scope = services.CreateScope();
                 var store = scope.ServiceProvider.GetRequiredService<IMarketplaceStore>();
                 var marketplace = scope.ServiceProvider.GetRequiredService<IMarketplaceService>();
+                var now = DateTimeOffset.UtcNow;
 
-                // Ten minutes is the default policy. Per-professional policy is checked again below
-                // before escalation so a longer interval is respected.
-                var candidates = await store.GetUnacknowledgedEngagementsAsync(DateTimeOffset.UtcNow.AddMinutes(-10), stoppingToken);
+                // Policy validation allows escalation as early as one minute. Query at that floor,
+                // then apply each professional's actual interval before sending the next channel.
+                var candidates = await store.GetUnacknowledgedEngagementsAsync(now.Subtract(MinimumEscalationAge), stoppingToken);
                 foreach (var engagement in candidates)
                 {
                     var policy = await store.GetNotificationPolicyAsync(engagement.ProfessionalId, stoppingToken);
-                    if (engagement.UpdatedAt > DateTimeOffset.UtcNow.Subtract(policy.EscalationAfter)) continue;
+                    if (engagement.UpdatedAt > now.Subtract(policy.EscalationAfter)) continue;
 
                     var escalated = await marketplace.EscalateEngagementAsync(engagement.Id, stoppingToken);
                     if (escalated)
