@@ -44,7 +44,7 @@
   <dialog class="engagement-dialog" data-engagement-dialog>
     <form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form>
     <h2>Request <span data-professional-name>a professional</span></h2>
-    <p>Your verified Ebolito identity is used so the professional knows who is requesting contact. The professional can receive this by WhatsApp or SMS without needing to stay online.</p>
+    <p>Your verified Ebolito identity is used so the professional knows who is requesting contact. You do not need to know whether they use Ebolito, WhatsApp, SMS, email, Slack or another supported channel—Ebolito routes the request for you.</p>
 
     <section data-identity-start>
       <h3>Verify your mobile number</h3>
@@ -71,7 +71,8 @@
       <input type="hidden" name="professionalId">
       <label>What do you need?<textarea name="requestText" required placeholder="Briefly describe the job"></textarea></label>
       <label>Where is the job?<input name="location" required placeholder="Community or parish"></label>
-      <label>Preferred contact channel<select name="preferredChannel"><option value="0">WhatsApp</option><option value="1">SMS</option><option value="2">Ebolito web</option></select></label>
+      <label>How should the professional contact you?<select name="preferredChannel"><option value="0">WhatsApp</option><option value="1">SMS</option><option value="2">Ebolito</option></select></label>
+      <p><small>This preference is for the professional's reply. Ebolito chooses the best configured channel to notify them.</small></p>
       <button type="submit">Send engagement request</button>
       <p data-engagement-status></p>
     </form>
