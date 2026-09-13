@@ -22,13 +22,14 @@ public interface IMarketplaceStore
     Task<Engagement?> GetEngagementAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Engagement>> GetUnacknowledgedEngagementsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default);
     Task<ProfessionalNotificationPolicy> GetNotificationPolicyAsync(Guid professionalId, CancellationToken cancellationToken = default);
+    Task SaveNotificationPolicyAsync(ProfessionalNotificationPolicy policy, CancellationToken cancellationToken = default);
     Task SaveDeliveryAttemptAsync(EngagementDeliveryAttempt attempt, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<EngagementDeliveryAttempt>> GetDeliveryAttemptsAsync(Guid engagementId, CancellationToken cancellationToken = default);
 }
 
 public interface IEngagementNotifier
 {
-    Task<EngagementChannel> DeliverAsync(Professional professional, CustomerIdentity customer, Engagement engagement, ProfessionalNotificationPolicy policy, IReadOnlyCollection<EngagementDeliveryAttempt> previousAttempts, CancellationToken cancellationToken = default);
+    Task<EngagementChannel?> DeliverAsync(Professional professional, CustomerIdentity customer, Engagement engagement, ProfessionalNotificationPolicy policy, IReadOnlyCollection<EngagementDeliveryAttempt> previousAttempts, CancellationToken cancellationToken = default);
     Task NotifyCustomerAsync(CustomerIdentity customer, Professional professional, Engagement engagement, CancellationToken cancellationToken = default);
 }
 
@@ -111,9 +112,9 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
         var policy = await store.GetNotificationPolicyAsync(professional.Id, cancellationToken);
         var attempts = await store.GetDeliveryAttemptsAsync(engagement.Id, cancellationToken);
         var deliveredChannel = await notifier.DeliverAsync(professional, customer, engagement, policy, attempts, cancellationToken);
-        if (attempts.Any(x => x.Succeeded && x.Channel == deliveredChannel)) return false;
-        await store.SaveDeliveryAttemptAsync(new EngagementDeliveryAttempt(Guid.NewGuid(), engagement.Id, deliveredChannel, DateTimeOffset.UtcNow, true, "Delivered by configured channel router."), cancellationToken);
-        engagement.RecordDelivery(deliveredChannel);
+        if (deliveredChannel is null || attempts.Any(x => x.Succeeded && x.Channel == deliveredChannel.Value)) return false;
+        await store.SaveDeliveryAttemptAsync(new EngagementDeliveryAttempt(Guid.NewGuid(), engagement.Id, deliveredChannel.Value, DateTimeOffset.UtcNow, true, "Delivered by configured channel router."), cancellationToken);
+        engagement.RecordDelivery(deliveredChannel.Value);
         await store.SaveEngagementAsync(engagement, cancellationToken);
         return true;
     }
