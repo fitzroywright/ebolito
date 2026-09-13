@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Ebolito.Domain;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace Ebolito.Infrastructure;
 
@@ -42,6 +44,39 @@ public sealed partial class PostgresMarketplaceStore
         return new ProfessionalNotificationPolicy(professionalId, EngagementChannel.WhatsApp, null, EngagementChannel.Sms, TimeSpan.FromMinutes(10), [EngagementChannel.WhatsApp, EngagementChannel.Sms], endpoints);
     }
 
+    public async Task SaveNotificationPolicyAsync(ProfessionalNotificationPolicy policy, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        var escalationSeconds = Math.Clamp((int)policy.EscalationAfter.TotalSeconds, 60, 86400);
+        var escalationOrder = policy.EscalationOrder.Select(x => (int)x).ToArray();
+        var endpointsJson = JsonSerializer.Serialize(policy.Endpoints, JsonOptions);
+
+        const string sql = """
+            insert into professional_notification_policies(
+                professional_id,primary_channel,business_channel,fallback_channel,
+                escalation_after_seconds,escalation_order,endpoints)
+            values($1,$2,$3,$4,$5,$6,$7::jsonb)
+            on conflict(professional_id) do update set
+                primary_channel=excluded.primary_channel,
+                business_channel=excluded.business_channel,
+                fallback_channel=excluded.fallback_channel,
+                escalation_after_seconds=excluded.escalation_after_seconds,
+                escalation_order=excluded.escalation_order,
+                endpoints=excluded.endpoints
+            """;
+
+        await using var cmd = _dataSource.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(policy.ProfessionalId);
+        cmd.Parameters.AddWithValue((int)policy.PrimaryChannel);
+        var business = cmd.Parameters.Add("business_channel", NpgsqlDbType.Integer);
+        business.Value = policy.BusinessChannel is null ? DBNull.Value : (int)policy.BusinessChannel.Value;
+        cmd.Parameters.AddWithValue((int)policy.FallbackChannel);
+        cmd.Parameters.AddWithValue(escalationSeconds);
+        cmd.Parameters.AddWithValue(escalationOrder);
+        cmd.Parameters.AddWithValue(endpointsJson);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task SaveDeliveryAttemptAsync(EngagementDeliveryAttempt attempt, CancellationToken cancellationToken = default)
     {
         const string sql = "insert into engagement_delivery_attempts(id,engagement_id,channel,attempted_at,succeeded,detail) values($1,$2,$3,$4,$5,$6)";
@@ -51,7 +86,8 @@ public sealed partial class PostgresMarketplaceStore
         cmd.Parameters.AddWithValue((int)attempt.Channel);
         cmd.Parameters.AddWithValue(attempt.AttemptedAt);
         cmd.Parameters.AddWithValue(attempt.Succeeded);
-        cmd.Parameters.AddWithValue((object?)attempt.Detail ?? DBNull.Value);
+        var detail = cmd.Parameters.Add("detail", NpgsqlDbType.Text);
+        detail.Value = (object?)attempt.Detail ?? DBNull.Value;
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
