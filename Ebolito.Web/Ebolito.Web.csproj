@@ -9,4 +9,10 @@
     <ProjectReference Include="../Ebolito.Application/Ebolito.Application.csproj" />
     <ProjectReference Include="../Ebolito.Infrastructure/Ebolito.Infrastructure.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Update="Configuration/ebolito.configuration-contract.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
 </Project>
