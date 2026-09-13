@@ -71,4 +71,44 @@ public sealed class MarketplaceTests
             "Kingston",
             EngagementChannel.Sms)));
     }
+
+    [Fact]
+    public async Task MobileVerification_CreatesVerifiedCustomer()
+    {
+        var store = new InMemoryMarketplaceStore();
+        var challenges = new InMemoryVerificationChallengeStore();
+        var sender = new CapturingVerificationSender();
+        var service = new CustomerIdentityService(store, challenges, sender);
+
+        var challenge = await service.StartAsync(new MobileVerificationStart("Fitz Test", "876-555-1212", "fitz@example.com"));
+        var customer = await service.CompleteAsync(new MobileVerificationComplete(challenge.Id, sender.LastCode!));
+
+        Assert.Equal("Fitz Test", customer.DisplayName);
+        Assert.Equal("+18765551212", customer.VerifiedMobileNumber);
+        Assert.Equal(customer, await store.GetCustomerAsync(customer.Id));
+    }
+
+    [Fact]
+    public async Task MobileVerification_RejectsWrongCode()
+    {
+        var store = new InMemoryMarketplaceStore();
+        var challenges = new InMemoryVerificationChallengeStore();
+        var sender = new CapturingVerificationSender();
+        var service = new CustomerIdentityService(store, challenges, sender);
+
+        var challenge = await service.StartAsync(new MobileVerificationStart("Test User", "8765553434"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CompleteAsync(new MobileVerificationComplete(challenge.Id, "000000")));
+    }
+
+    private sealed class CapturingVerificationSender : IMobileVerificationSender
+    {
+        public string? LastCode { get; private set; }
+
+        public Task SendCodeAsync(string mobileNumber, string code, CancellationToken cancellationToken = default)
+        {
+            LastCode = code;
+            return Task.CompletedTask;
+        }
+    }
 }
