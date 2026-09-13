@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Ebolito.Domain;
@@ -7,7 +8,7 @@ namespace Ebolito.Application;
 public sealed record MobileVerificationStart(string DisplayName, string MobileNumber, string? Email = null);
 public sealed record MobileVerificationChallenge(Guid Id, DateTimeOffset ExpiresAt);
 public sealed record MobileVerificationComplete(Guid ChallengeId, string Code);
-public sealed record PendingMobileVerification(Guid Id, string DisplayName, string MobileNumber, string? Email, string CodeHash, DateTimeOffset ExpiresAt);
+public sealed record PendingMobileVerification(Guid Id, string DisplayName, string MobileNumber, string? Email, string CodeHash, DateTimeOffset ExpiresAt, int AttemptsRemaining = 5);
 
 public interface IVerificationChallengeStore
 {
@@ -33,11 +34,18 @@ public sealed class CustomerIdentityService(
     IMobileVerificationSender sender) : ICustomerIdentityService
 {
     private static readonly TimeSpan ChallengeLifetime = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan ResendCooldown = TimeSpan.FromSeconds(30);
+    private const int MaximumAttempts = 5;
+    private readonly ConcurrentDictionary<string, DateTimeOffset> lastSentAt = new(StringComparer.Ordinal);
 
     public async Task<MobileVerificationChallenge> StartAsync(MobileVerificationStart request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.DisplayName)) throw new ArgumentException("Your name is required.");
         var mobile = NormalizeMobile(request.MobileNumber);
+        var now = DateTimeOffset.UtcNow;
+        if (lastSentAt.TryGetValue(mobile, out var previous) && now - previous < ResendCooldown)
+            throw new InvalidOperationException("Please wait before requesting another verification code.");
+
         var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
         var challenge = new PendingMobileVerification(
             Guid.NewGuid(),
@@ -45,10 +53,20 @@ public sealed class CustomerIdentityService(
             mobile,
             string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
             HashCode(code),
-            DateTimeOffset.UtcNow.Add(ChallengeLifetime));
+            now.Add(ChallengeLifetime),
+            MaximumAttempts);
 
         await challengeStore.SaveAsync(challenge, cancellationToken);
-        await sender.SendCodeAsync(mobile, code, cancellationToken);
+        try
+        {
+            await sender.SendCodeAsync(mobile, code, cancellationToken);
+            lastSentAt[mobile] = now;
+        }
+        catch
+        {
+            await challengeStore.RemoveAsync(challenge.Id, cancellationToken);
+            throw;
+        }
         return new MobileVerificationChallenge(challenge.Id, challenge.ExpiresAt);
     }
 
@@ -63,10 +81,25 @@ public sealed class CustomerIdentityService(
             throw new InvalidOperationException("Verification challenge has expired.");
         }
 
+        if (challenge.AttemptsRemaining <= 0)
+        {
+            await challengeStore.RemoveAsync(challenge.Id, cancellationToken);
+            throw new InvalidOperationException("Too many incorrect verification attempts. Request a new code.");
+        }
+
         if (!CryptographicOperations.FixedTimeEquals(
                 Convert.FromHexString(challenge.CodeHash),
                 Convert.FromHexString(HashCode(request.Code))))
-            throw new InvalidOperationException("Verification code is incorrect.");
+        {
+            var remaining = challenge.AttemptsRemaining - 1;
+            if (remaining <= 0)
+                await challengeStore.RemoveAsync(challenge.Id, cancellationToken);
+            else
+                await challengeStore.SaveAsync(challenge with { AttemptsRemaining = remaining }, cancellationToken);
+            throw new InvalidOperationException(remaining <= 0
+                ? "Too many incorrect verification attempts. Request a new code."
+                : $"Verification code is incorrect. {remaining} attempt{(remaining == 1 ? "" : "s")} remaining.");
+        }
 
         var customer = await marketplaceStore.GetCustomerByMobileAsync(challenge.MobileNumber, cancellationToken)
             ?? new CustomerIdentity(Guid.NewGuid(), challenge.DisplayName, challenge.MobileNumber, challenge.Email);
