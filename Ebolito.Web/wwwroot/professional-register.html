@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-theme="modern">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Join Ebolito as a Professional</title>
+  <link rel="stylesheet" href="/css/site.css">
+  <style>
+    .shell{max-width:760px;margin:40px auto;padding:0 20px}.card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:22px;margin-bottom:18px}.card label{display:block;margin:12px 0}.card input{width:100%;box-sizing:border-box;padding:10px}.actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}.note{background:#f6f6f6;border-radius:8px;padding:12px}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <h1>Join Ebolito as a Professional</h1>
+    <p>Create your professional account, verify your mobile number, complete your profile, and submit it for screening before it appears in marketplace search.</p>
+
+    <section class="card" data-start-section>
+      <h2>1. Create your account</h2>
+      <form data-start-form>
+        <label>Your name<input name="displayName" required autocomplete="name"></label>
+        <label>Business name <small>(optional)</small><input name="businessName" autocomplete="organization"></label>
+        <label>Mobile number<input name="mobileNumber" required inputmode="tel" autocomplete="tel" placeholder="876-555-1234"></label>
+        <button type="submit">Send verification code</button>
+        <p data-start-status></p>
+      </form>
+    </section>
+
+    <section class="card" data-complete-section hidden>
+      <h2>2. Verify your mobile</h2>
+      <p>We sent a six-digit code to <strong data-destination></strong>.</p>
+      <form data-complete-form>
+        <input type="hidden" name="challengeId">
+        <label>Verification code<input name="code" required inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code"></label>
+        <button type="submit">Verify and create account</button>
+        <p data-complete-status></p>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="note"><strong>What happens next?</strong><p>Your account starts as pending screening. You can sign in immediately to complete your profile, choose services and areas, add portfolio work, and configure notifications. Customers cannot find or request you until an Ebolito administrator screens and approves the profile.</p></div>
+      <div class="actions"><a href="/professional-login.html">Already registered? Sign in</a><a href="/">Back to marketplace</a></div>
+    </section>
+  </main>
+  <script src="/js/professional-register.js"></script>
+</body>
+</html>
