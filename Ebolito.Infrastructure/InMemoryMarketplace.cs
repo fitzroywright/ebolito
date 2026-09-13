@@ -72,4 +72,12 @@ public sealed class FallbackEngagementNotifier : IEngagementNotifier
         };
         return Task.FromResult(channel);
     }
+
+    public Task NotifyCustomerAsync(CustomerIdentity customer, Professional professional, Engagement engagement, CancellationToken cancellationToken = default)
+    {
+        // Common.Messaging will own the production delivery. Keeping this as an adapter boundary
+        // lets Ebolito notify the customer when a professional accepts/declines without coupling
+        // the domain to Twilio, Meta/WhatsApp, email, Slack, or any other provider.
+        return Task.CompletedTask;
+    }
 }
