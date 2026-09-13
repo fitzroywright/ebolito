@@ -176,7 +176,7 @@ async function submitEngagement(event) {
     }
     return;
   }
-  status.textContent = `Request sent. Ebolito notified the professional via ${channelNames[result.deliveredChannel] || 'their configured channel'}.`;
+  status.innerHTML = `Request sent. Ebolito notified the professional via ${escapeHtml(channelNames[result.deliveredChannel] || 'their configured channel')}. <a href="/my-engagements.html">View My Engagements</a>`;
   form.requestText.value = '';
 }
 
@@ -204,4 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('[data-identity-complete-form]')?.addEventListener('submit', completeIdentityVerification);
   document.querySelector('[data-engagement-form]')?.addEventListener('submit', submitEngagement);
   searchProfessionals();
+  const profileSlug = new URLSearchParams(window.location.search).get('profile');
+  if (profileSlug) showProfile(encodeURIComponent(profileSlug));
 });
