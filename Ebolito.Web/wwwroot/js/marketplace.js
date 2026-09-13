@@ -1,6 +1,7 @@
 const state = {
   professionals: [],
-  customerId: localStorage.getItem('ebolito.customerId') || null
+  customerId: localStorage.getItem('ebolito.customerId') || null,
+  sessionToken: localStorage.getItem('ebolito.customerSessionToken') || null
 };
 
 const channelNames = ['WhatsApp','SMS','Ebolito','Email','Slack','Microsoft Teams','Push','Webhook','Messenger','Instagram'];
@@ -85,9 +86,10 @@ function showIdentityState() {
   const complete = document.querySelector('[data-identity-complete]');
   const engagement = document.querySelector('[data-engagement-form]');
   if (!start || !complete || !engagement) return;
-  start.hidden = Boolean(state.customerId);
+  const signedIn = Boolean(state.customerId && state.sessionToken);
+  start.hidden = signedIn;
   complete.hidden = true;
-  engagement.hidden = !state.customerId;
+  engagement.hidden = !signedIn;
 }
 
 async function startIdentityVerification(event) {
@@ -128,7 +130,9 @@ async function completeIdentityVerification(event) {
     return;
   }
   state.customerId = result.id;
+  state.sessionToken = result.sessionToken;
   localStorage.setItem('ebolito.customerId', result.id);
+  localStorage.setItem('ebolito.customerSessionToken', result.sessionToken);
   document.querySelector('[data-identity-complete]').hidden = true;
   document.querySelector('[data-engagement-form]').hidden = false;
   status.textContent = '';
@@ -138,8 +142,9 @@ async function submitEngagement(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const status = form.querySelector('[data-engagement-status]');
-  if (!state.customerId) {
+  if (!state.customerId || !state.sessionToken) {
     status.textContent = 'Verify your mobile number first.';
+    clearCustomerSession();
     showIdentityState();
     return;
   }
@@ -156,21 +161,30 @@ async function submitEngagement(event) {
 
   const response = await fetch('/api/engagements', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Ebolito-Customer-Session': state.sessionToken
+    },
     body: JSON.stringify(body)
   });
   const result = await readJson(response);
   if (!response.ok) {
-    status.textContent = result.error || 'Unable to send request.';
-    if ((result.error || '').includes('Verified customer identity')) {
-      state.customerId = null;
-      localStorage.removeItem('ebolito.customerId');
+    status.textContent = response.status === 401 ? 'Your verified session expired. Please verify your mobile number again.' : (result.error || 'Unable to send request.');
+    if (response.status === 401 || (result.error || '').includes('Verified customer identity')) {
+      clearCustomerSession();
       showIdentityState();
     }
     return;
   }
   status.textContent = `Request sent. Ebolito notified the professional via ${channelNames[result.deliveredChannel] || 'their configured channel'}.`;
   form.requestText.value = '';
+}
+
+function clearCustomerSession() {
+  state.customerId = null;
+  state.sessionToken = null;
+  localStorage.removeItem('ebolito.customerId');
+  localStorage.removeItem('ebolito.customerSessionToken');
 }
 
 async function readJson(response) {
