@@ -33,6 +33,7 @@ public interface IMarketplaceStore
     Task SaveEngagementAsync(Engagement engagement, CancellationToken cancellationToken = default);
     Task<Engagement?> GetEngagementAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Engagement>> GetEngagementsForProfessionalAsync(Guid professionalId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<Engagement>> GetEngagementsForCustomerAsync(Guid customerId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Engagement>> GetUnacknowledgedEngagementsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default);
     Task<ProfessionalNotificationPolicy> GetNotificationPolicyAsync(Guid professionalId, CancellationToken cancellationToken = default);
     Task SaveNotificationPolicyAsync(ProfessionalNotificationPolicy policy, CancellationToken cancellationToken = default);
