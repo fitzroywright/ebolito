@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Ebolito.Application;
 using Ebolito.Domain;
 
 namespace Ebolito.Web;
@@ -28,9 +29,7 @@ public sealed record ProfessionalNotificationPolicyUpdate(
             FallbackChannel,
             TimeSpan.FromMinutes(EscalationAfterMinutes),
             EscalationOrder.Distinct().ToArray(),
-            Endpoints
-                .Select(x => new NotificationEndpoint(x.Channel, x.Address.Trim(), x.Label?.Trim(), x.Enabled))
-                .ToArray());
+            Endpoints.Select(x => new NotificationEndpoint(x.Channel, x.Address.Trim(), x.Label?.Trim(), x.Enabled)).ToArray());
     }
 
     private void Validate()
@@ -94,5 +93,67 @@ public static class ProfileAdministration
         var expectedBytes = Encoding.UTF8.GetBytes(expected);
         var suppliedBytes = Encoding.UTF8.GetBytes(supplied.ToString());
         return expectedBytes.Length == suppliedBytes.Length && CryptographicOperations.FixedTimeEquals(expectedBytes, suppliedBytes);
+    }
+}
+
+public static class ProfessionalNotificationPolicyEndpoints
+{
+    public static IEndpointRouteBuilder MapProfessionalNotificationPolicyEndpoints(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/api/admin/messaging/capabilities", (HttpRequest request, IConfiguration configuration) =>
+        {
+            if (!ProfileAdministration.IsAuthorized(request)) return Results.Unauthorized();
+#if COMMON_MESSAGING
+            const bool commonMessagingCompiled = true;
+#else
+            const bool commonMessagingCompiled = false;
+#endif
+            var configured = new Dictionary<string, bool>
+            {
+                [nameof(EngagementChannel.Slack)] = configuration.GetValue("Messaging:Slack:Enabled", false),
+                [nameof(EngagementChannel.Teams)] = configuration.GetValue("Messaging:Teams:Enabled", false),
+                [nameof(EngagementChannel.Email)] = configuration.GetValue("Messaging:Email:Enabled", false),
+                [nameof(EngagementChannel.Sms)] = configuration.GetValue("Messaging:Sms:Enabled", false),
+                [nameof(EngagementChannel.WhatsApp)] = false,
+                [nameof(EngagementChannel.Push)] = false,
+                [nameof(EngagementChannel.Webhook)] = false,
+                [nameof(EngagementChannel.Messenger)] = false,
+                [nameof(EngagementChannel.Instagram)] = false
+            };
+
+            return Results.Ok(new
+            {
+                commonMessagingCompiled,
+                canonicalInAppChannel = EngagementChannel.Web,
+                configured,
+                note = "WhatsApp/Push/Webhook/Messenger/Instagram are modeled by Ebolito policy but require Common.Messaging providers before production delivery is advertised."
+            });
+        });
+
+        endpoints.MapGet("/api/admin/professionals/{id:guid}/notification-policy", async (Guid id, HttpRequest request, IMarketplaceStore store, CancellationToken ct) =>
+        {
+            if (!ProfileAdministration.IsAuthorized(request)) return Results.Unauthorized();
+            if (await store.GetProfessionalAsync(id, ct) is null) return Results.NotFound();
+            return Results.Ok(await store.GetNotificationPolicyAsync(id, ct));
+        });
+
+        endpoints.MapPut("/api/admin/professionals/{id:guid}/notification-policy", async (Guid id, HttpRequest request, ProfessionalNotificationPolicyUpdate update, IMarketplaceStore store, CancellationToken ct) =>
+        {
+            if (!ProfileAdministration.IsAuthorized(request)) return Results.Unauthorized();
+            if (await store.GetProfessionalAsync(id, ct) is null) return Results.NotFound();
+
+            try
+            {
+                var policy = update.ToDomain(id);
+                await store.SaveNotificationPolicyAsync(policy, ct);
+                return Results.Ok(policy);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
+        return endpoints;
     }
 }
