@@ -3,14 +3,15 @@ const state = {
   customerId: localStorage.getItem('ebolito.customerId') || null
 };
 
+const channelNames = ['WhatsApp','SMS','Ebolito','Email','Slack','Microsoft Teams','Push','Webhook','Messenger','Instagram'];
+
 async function loadSkills() {
   const select = document.querySelector('[data-service]');
   if (!select) return;
   const response = await fetch('/api/skills');
   if (!response.ok) return;
   const skills = await response.json();
-  select.innerHTML = '<option value="">-- Select a Service --</option>' +
-    skills.map(x => `<option value="${escapeHtml(x.name)}">${escapeHtml(x.name)}</option>`).join('');
+  select.innerHTML = '<option value="">-- Select a Service --</option>' + skills.map(x => `<option value="${escapeHtml(x.name)}">${escapeHtml(x.name)}</option>`).join('');
 }
 
 async function searchProfessionals(event) {
@@ -94,22 +95,16 @@ async function startIdentityVerification(event) {
   const form = event.currentTarget;
   const status = form.querySelector('[data-identity-start-status]');
   status.textContent = 'Sending code…';
-
   const response = await fetch('/api/identity/mobile/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      displayName: form.displayName.value,
-      mobileNumber: form.mobileNumber.value,
-      email: form.email.value || null
-    })
+    body: JSON.stringify({ displayName: form.displayName.value, mobileNumber: form.mobileNumber.value, email: form.email.value || null })
   });
   const result = await readJson(response);
   if (!response.ok) {
     status.textContent = result.error || result.detail || 'Unable to send verification code.';
     return;
   }
-
   document.querySelector('[data-identity-start]').hidden = true;
   const complete = document.querySelector('[data-identity-complete]');
   complete.hidden = false;
@@ -122,7 +117,6 @@ async function completeIdentityVerification(event) {
   const form = event.currentTarget;
   const status = form.querySelector('[data-identity-complete-status]');
   status.textContent = 'Verifying…';
-
   const response = await fetch('/api/identity/mobile/complete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -133,7 +127,6 @@ async function completeIdentityVerification(event) {
     status.textContent = result.error || 'Verification failed.';
     return;
   }
-
   state.customerId = result.id;
   localStorage.setItem('ebolito.customerId', result.id);
   document.querySelector('[data-identity-complete]').hidden = true;
@@ -158,7 +151,7 @@ async function submitEngagement(event) {
     skillId: null,
     requestText: form.requestText.value,
     location: form.location.value,
-    preferredChannel: Number(form.preferredChannel.value)
+    customerPreferredContactChannel: Number(form.preferredChannel.value)
   };
 
   const response = await fetch('/api/engagements', {
@@ -176,7 +169,7 @@ async function submitEngagement(event) {
     }
     return;
   }
-  status.textContent = `Request sent. Delivery: ${['WhatsApp','SMS','Web'][result.deliveredChannel ?? result.requestedChannel]}.`;
+  status.textContent = `Request sent. Ebolito notified the professional via ${channelNames[result.deliveredChannel] || 'their configured channel'}.`;
   form.requestText.value = '';
 }
 
