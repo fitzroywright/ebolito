@@ -136,7 +136,10 @@ app.MapPost("/api/engineering/diagnostics/run", async (HttpRequest httpRequest, 
 });
 
 app.MapGet("/api/engineering/diagnostics/runs", (HttpRequest request, EbolitoEngineeringDiagnostics diagnostics) =>
-    EbolitoEngineeringDiagnostics.IsAuthorized(request) ? Results.Ok(diagnostics.GetRecent()) : Results.Unauthorized());
+{
+    if (!EbolitoEngineeringDiagnostics.IsAuthorized(request)) return Results.Unauthorized();
+    return Results.Ok(diagnostics.GetRecent());
+});
 
 app.MapGet("/api/engineering/diagnostics/runs/{runId:guid}", (Guid runId, HttpRequest request, EbolitoEngineeringDiagnostics diagnostics) =>
 {
