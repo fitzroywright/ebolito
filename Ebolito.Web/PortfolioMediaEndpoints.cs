@@ -1,5 +1,6 @@
 #if COMMON_STORAGE
 using Common.Storage;
+using Ebolito.Application;
 #endif
 
 namespace Ebolito.Web;
@@ -11,9 +12,10 @@ public static class PortfolioMediaEndpoints
     public static IEndpointRouteBuilder MapPortfolioMediaEndpoints(this IEndpointRouteBuilder endpoints)
     {
 #if COMMON_STORAGE
-        endpoints.MapPost("/api/admin/professionals/{id:guid}/portfolio-media", async (Guid id, HttpRequest request, IConfiguration configuration, CancellationToken ct) =>
+        endpoints.MapPost("/api/admin/professionals/{id:guid}/portfolio-media", async (Guid id, HttpRequest request, IConfiguration configuration, IMarketplaceStore store, CancellationToken ct) =>
         {
             if (!ProfileAdministration.IsAuthorized(request)) return Results.Unauthorized();
+            if (await store.GetProfessionalAsync(id, ct) is null) return Results.NotFound();
             if (!request.HasFormContentType) return Results.BadRequest(new { error = "multipart/form-data is required." });
 
             var form = await request.ReadFormAsync(ct);
@@ -29,8 +31,7 @@ public static class PortfolioMediaEndpoints
                 return Results.BadRequest(new { error = "The uploaded file content does not match its image type." });
             upload.Position = 0;
 
-            var root = ResolveStorageRoot(configuration);
-            var storage = new LocalFileStorage(root);
+            var storage = new LocalFileStorage(ResolveStorageRoot(configuration));
             var extension = normalizedType switch
             {
                 "image/jpeg" => ".jpg",
@@ -57,7 +58,7 @@ public static class PortfolioMediaEndpoints
             return Results.Ok(new
             {
                 storageKey = stored.StorageKey,
-                url = $"/media/{Uri.EscapeDataString(stored.StorageKey)}",
+                url = $"/media/{stored.StorageKey}",
                 stored.Length,
                 stored.ContentType,
                 stored.Sha256,
@@ -65,18 +66,17 @@ public static class PortfolioMediaEndpoints
             });
         });
 
-        endpoints.MapGet("/media/{storageKey}", async (string storageKey, IConfiguration configuration, CancellationToken ct) =>
+        endpoints.MapGet("/media/{**storageKey}", async (string storageKey, IConfiguration configuration, CancellationToken ct) =>
         {
-            var decoded = Uri.UnescapeDataString(storageKey);
-            if (!decoded.StartsWith("ebolito/professionals/", StringComparison.Ordinal) || decoded.Contains("..", StringComparison.Ordinal))
+            if (!storageKey.StartsWith("ebolito/professionals/", StringComparison.Ordinal) || storageKey.Contains("..", StringComparison.Ordinal))
                 return Results.NotFound();
 
             var storage = new LocalFileStorage(ResolveStorageRoot(configuration));
-            var metadata = await storage.GetMetadataAsync(decoded, ct);
+            var metadata = await storage.GetMetadataAsync(storageKey, ct);
             if (metadata is null || metadata.Status != StorageStatus.Stored || !metadata.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
                 return Results.NotFound();
 
-            var stream = await storage.OpenReadAsync(decoded, ct);
+            var stream = await storage.OpenReadAsync(storageKey, ct);
             return Results.Stream(stream, metadata.ContentType, enableRangeProcessing: true);
         });
 #else
