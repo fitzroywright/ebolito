@@ -25,6 +25,7 @@ builder.Services.AddSingleton<ICustomerIdentityService, CustomerIdentityService>
 builder.Services.AddSingleton<EbolitoEngineeringDiagnostics>();
 builder.Services.AddHttpClient();
 builder.Services.AddHostedService<ConfigurationRegistrationHostedService>();
+builder.Services.AddHostedService<EngagementEscalationHostedService>();
 
 var app = builder.Build();
 
@@ -68,30 +69,15 @@ app.MapGet("/api/professionals/{slug}", async (string slug, IMarketplaceService 
 
 app.MapPost("/api/identity/mobile/start", async (MobileVerificationStart request, ICustomerIdentityService identity, CancellationToken ct) =>
 {
-    try
-    {
-        return Results.Ok(await identity.StartAsync(request, ct));
-    }
-    catch (ArgumentException ex)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
-    catch (InvalidOperationException ex)
-    {
-        return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
+    try { return Results.Ok(await identity.StartAsync(request, ct)); }
+    catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (InvalidOperationException ex) { return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable); }
 });
 
 app.MapPost("/api/identity/mobile/complete", async (MobileVerificationComplete request, ICustomerIdentityService identity, CancellationToken ct) =>
 {
-    try
-    {
-        return Results.Ok(await identity.CompleteAsync(request, ct));
-    }
-    catch (InvalidOperationException ex)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
+    try { return Results.Ok(await identity.CompleteAsync(request, ct)); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
 });
 
 app.MapPost("/api/engagements", async (EngagementRequest request, IMarketplaceService marketplace, CancellationToken ct) =>
@@ -101,26 +87,14 @@ app.MapPost("/api/engagements", async (EngagementRequest request, IMarketplaceSe
         var engagement = await marketplace.RequestEngagementAsync(request, ct);
         return Results.Created($"/api/engagements/{engagement.Id}", engagement);
     }
-    catch (ArgumentException ex)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
-    catch (InvalidOperationException ex)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
+    catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
 });
 
 app.MapPost("/api/engagements/{id:guid}/response", async (Guid id, EngagementResponse response, IMarketplaceService marketplace, CancellationToken ct) =>
 {
-    try
-    {
-        return Results.Ok(await marketplace.RespondToEngagementAsync(id, response, ct));
-    }
-    catch (InvalidOperationException ex)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
+    try { return Results.Ok(await marketplace.RespondToEngagementAsync(id, response, ct)); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
 });
 
 app.MapGet("/api/engagements/{id:guid}", async (Guid id, IMarketplaceStore store, CancellationToken ct) =>
@@ -128,6 +102,9 @@ app.MapGet("/api/engagements/{id:guid}", async (Guid id, IMarketplaceStore store
     var engagement = await store.GetEngagementAsync(id, ct);
     return engagement is null ? Results.NotFound() : Results.Ok(engagement);
 });
+
+app.MapGet("/api/engagements/{id:guid}/deliveries", async (Guid id, IMarketplaceStore store, CancellationToken ct) =>
+    Results.Ok(await store.GetDeliveryAttemptsAsync(id, ct)));
 
 app.MapPost("/api/engineering/diagnostics/run", async (HttpRequest httpRequest, EngineeringDiagnosticRunRequest request, EbolitoEngineeringDiagnostics diagnostics, CancellationToken ct) =>
 {
