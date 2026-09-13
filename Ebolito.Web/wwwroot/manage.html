@@ -12,14 +12,13 @@
 <body>
   <div class="manage-shell">
     <h1>Ebolito Professional Management</h1>
-    <p>This is the commissioning/profile-management surface. It uses the existing protected professional administration API and does not replace future professional self-service authentication.</p>
-
+    <p>Professionals can sign in with the mobile number registered on their profile. The administration key remains available only as a commissioning fallback.</p>
     <section class="manage-card">
       <div class="manage-grid">
         <label>Professional ID<input data-professional-id placeholder="00000000-0000-0000-0000-000000000000"></label>
-        <label>Administration key<input data-admin-key type="password" autocomplete="current-password"></label>
+        <label>Administration key <small>(commissioning fallback)</small><input data-admin-key type="password" autocomplete="current-password"></label>
       </div>
-      <div class="manage-actions"><button data-load-site>Load site</button><a href="/">Back to marketplace</a></div>
+      <div class="manage-actions"><button data-load-site>Load site</button><a href="/professional-login.html">Professional sign in</a><a href="/inbox.html">Engagement inbox</a><a href="/messaging.html">Messaging</a><a href="/">Marketplace</a></div>
       <p class="status" data-global-status></p>
     </section>
 
@@ -27,52 +26,22 @@
       <section class="manage-card">
         <h2>Professional profile</h2>
         <form data-profile-form>
-          <label>Slug<input name="slug" required></label>
-          <label>Display name<input name="displayName" required></label>
-          <label>Business name<input name="businessName"></label>
-          <label>Headline<input name="headline" required></label>
-          <label>About<textarea name="about" required></textarea></label>
-          <label>Phone<input name="phoneNumber"></label>
-          <label>WhatsApp<input name="whatsAppNumber"></label>
-          <label>Skill IDs <small>(comma separated)</small><input name="skillIds" required></label>
-          <label>Service areas <small>(one per line: Parish or Parish|Community)</small><textarea name="serviceAreas" required></textarea></label>
-          <label><input type="checkbox" name="isActive" checked> Active</label>
-          <button type="submit">Save profile</button>
-          <p class="status" data-profile-status></p>
+          <label>Slug<input name="slug" required></label><label>Display name<input name="displayName" required></label><label>Business name<input name="businessName"></label><label>Headline<input name="headline" required></label><label>About<textarea name="about" required></textarea></label><label>Phone<input name="phoneNumber"></label><label>WhatsApp<input name="whatsAppNumber"></label><label>Skill IDs <small>(comma separated)</small><input name="skillIds" required></label><label>Service areas <small>(one per line: Parish or Parish|Community)</small><textarea name="serviceAreas" required></textarea></label><label><input type="checkbox" name="isActive" checked> Active</label><button type="submit">Save profile</button><p class="status" data-profile-status></p>
         </form>
       </section>
 
       <section class="manage-card">
         <h2>Portfolio image</h2>
         <p>JPEG, PNG or WebP, maximum 10 MB. Upload first, then use the returned URL in a project.</p>
-        <form data-upload-form>
-          <label>Image<input type="file" name="file" accept="image/jpeg,image/png,image/webp" required></label>
-          <button type="submit">Upload image</button>
-          <p class="status" data-upload-status></p>
-          <label>Uploaded URL<input data-uploaded-url readonly></label>
-          <img class="media-preview" data-upload-preview hidden alt="Uploaded portfolio image preview">
-        </form>
-
+        <form data-upload-form><label>Image<input type="file" name="file" accept="image/jpeg,image/png,image/webp" required></label><button type="submit">Upload image</button><p class="status" data-upload-status></p><label>Uploaded URL<input data-uploaded-url readonly></label><img class="media-preview" data-upload-preview hidden alt="Uploaded portfolio image preview"></form>
         <h2>Portfolio project</h2>
         <form data-project-form>
-          <input type="hidden" name="id">
-          <label>Title<input name="title" required></label>
-          <label>Description<textarea name="description" required></textarea></label>
-          <label>Location<input name="location" required></label>
-          <label>Completed on<input name="completedOn" type="date"></label>
-          <label>Skill IDs <small>(comma separated)</small><input name="skillIds" required></label>
-          <label>Photo URLs <small>(one per line)</small><textarea name="photos"></textarea></label>
-          <label><input type="checkbox" name="isFeatured"> Featured</label>
-          <div class="manage-actions"><button type="submit">Save project</button><button type="button" data-clear-project>New project</button></div>
-          <p class="status" data-project-status></p>
+          <input type="hidden" name="id"><label>Title<input name="title" required></label><label>Description<textarea name="description" required></textarea></label><label>Location<input name="location" required></label><label>Completed on<input name="completedOn" type="date"></label><label>Skill IDs <small>(comma separated)</small><input name="skillIds" required></label><label>Photo URLs <small>(one per line)</small><textarea name="photos"></textarea></label><label><input type="checkbox" name="isFeatured"> Featured</label><div class="manage-actions"><button type="submit">Save project</button><button type="button" data-clear-project>New project</button></div><p class="status" data-project-status></p>
         </form>
       </section>
     </div>
 
-    <section class="manage-card">
-      <h2>Existing projects</h2>
-      <div class="project-list" data-project-list><p>Load a professional site to view projects.</p></div>
-    </section>
+    <section class="manage-card"><h2>Existing projects</h2><div class="project-list" data-project-list><p>Load a professional site to view projects.</p></div></section>
   </div>
   <script src="/js/manage.js"></script>
 </body>
