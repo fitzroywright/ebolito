@@ -39,6 +39,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapProfessionalNotificationPolicyEndpoints();
 app.MapVerifiedReviewEndpoints();
+app.MapEngagementManagementEndpoints();
 
 async Task<IResult> ReadyResult(IMarketplaceStore store, CancellationToken ct)
 {
