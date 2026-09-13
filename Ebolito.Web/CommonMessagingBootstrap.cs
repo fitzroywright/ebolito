@@ -23,13 +23,9 @@ public static class CommonMessagingBootstrap
         ArgumentNullException.ThrowIfNull(configuration);
 
         if (!string.IsNullOrWhiteSpace(postgresConnection) && configuration.GetValue("Messaging:DurableQueue", true))
-        {
             services.AddCommonMessagingPostgreSqlDelivery(postgresConnection, "ebolito");
-        }
         else
-        {
             services.AddCommonMessagingQueuedDelivery(durable: false);
-        }
 
         services.TryAddSingleton<IChannelSecretResolver, EnvironmentChannelSecretResolver>();
 
@@ -78,14 +74,14 @@ public static class CommonMessagingBootstrap
             services.AddSingleton<IMobileVerificationSender, CommonMessagingMobileVerificationSender>();
         }
 
-        // Common.Messaging defines WhatsApp as a channel but currently has no registered WhatsApp provider.
-        // Do not advertise it as available here until that provider exists.
+        // Common.Messaging currently defines WhatsApp in MessageChannel but has no concrete provider.
+        // Ebolito will skip WhatsApp in production routing until that provider is registered.
 
         services.AddSingleton<IReadOnlySet<EngagementChannel>>(supported);
         services.AddSingleton<IEngagementNotifier>(provider => new CommonMessagingEngagementNotifier(
             provider.GetRequiredService<IExternalDeliveryQueue>(),
             provider.GetRequiredService<IReadOnlySet<EngagementChannel>>(),
-            configuration["Ebolito:PublicBaseUrl"]));
+            provider.GetService<IEngagementActionLinkBuilder>()));
     }
 }
 
