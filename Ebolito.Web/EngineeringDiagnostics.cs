@@ -198,6 +198,20 @@ public sealed class EbolitoEngineeringDiagnostics(
                 string.IsNullOrWhiteSpace(actionKey) ? EngineeringDiagnosticStatus.InterventionRequired : EngineeringDiagnosticStatus.Passed,
                 string.IsNullOrWhiteSpace(actionKey) ? "EBOLITO_ENGAGEMENT_ACTION_KEY is missing." : "Engagement action links have a signing credential."));
 
+            var customerSessionKey = Environment.GetEnvironmentVariable("EBOLITO_CUSTOMER_SESSION_KEY");
+            checks.Add(new(
+                "security.customer-session-key",
+                "Customer session signing credential",
+                string.IsNullOrWhiteSpace(customerSessionKey) ? EngineeringDiagnosticStatus.InterventionRequired : EngineeringDiagnosticStatus.Passed,
+                string.IsNullOrWhiteSpace(customerSessionKey) ? "EBOLITO_CUSTOMER_SESSION_KEY is missing." : "Verified customer sessions have a signing credential."));
+
+            var professionalSessionKey = Environment.GetEnvironmentVariable("EBOLITO_PROFESSIONAL_SESSION_KEY");
+            checks.Add(new(
+                "security.professional-session-key",
+                "Professional session signing credential",
+                string.IsNullOrWhiteSpace(professionalSessionKey) ? EngineeringDiagnosticStatus.InterventionRequired : EngineeringDiagnosticStatus.Passed,
+                string.IsNullOrWhiteSpace(professionalSessionKey) ? "EBOLITO_PROFESSIONAL_SESSION_KEY is missing." : "Professional self-service sessions have a signing credential."));
+
             var profileAdminKey = Environment.GetEnvironmentVariable("EBOLITO_PROFILE_ADMIN_KEY");
             checks.Add(new(
                 "security.profile-admin-key",
