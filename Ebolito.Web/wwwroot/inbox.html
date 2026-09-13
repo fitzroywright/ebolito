@@ -17,16 +17,16 @@
     <section class="inbox-toolbar">
       <div class="inbox-toolbar-grid">
         <label>Professional ID<input data-professional-id placeholder="Professional GUID"></label>
-        <label>Administration key<input data-admin-key type="password" autocomplete="current-password"></label>
+        <label>Administration key <small>(commissioning fallback)</small><input data-admin-key type="password" autocomplete="current-password"></label>
         <label>Status filter<select data-status-filter><option value="">All statuses</option><option>Delivered</option><option>Accepted</option><option>Declined</option><option>Contacted</option><option>Hired</option><option>Completed</option><option>Reviewed</option></select></label>
       </div>
-      <div class="inbox-actions"><button type="button" data-load>Load inbox</button><a href="/manage.html">Profile management</a><a href="/">Marketplace</a></div>
+      <div class="inbox-actions"><button type="button" data-load>Load inbox</button><a href="/professional-login.html">Professional sign in</a><a href="/manage.html">Profile management</a><a href="/messaging.html">Messaging</a><a href="/">Marketplace</a></div>
       <p data-global-status></p>
     </section>
 
     <section>
       <h2 data-inbox-title>Engagements</h2>
-      <div class="inbox-list" data-inbox-list><div class="empty">Enter a professional ID and administration key to load the inbox.</div></div>
+      <div class="inbox-list" data-inbox-list><div class="empty">Sign in as a professional, or use the commissioning administration key.</div></div>
     </section>
   </main>
   <script src="/js/inbox.js"></script>
