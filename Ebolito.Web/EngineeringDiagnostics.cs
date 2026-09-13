@@ -148,7 +148,7 @@ public sealed class EbolitoEngineeringDiagnostics(
             checks.Add(new("storage.portfolio", "Portfolio media storage", EngineeringDiagnosticStatus.Warning, "Common.Storage is not compiled into this deployment."));
 #endif
 
-            var enabledChannels = new[] { "Slack", "Teams", "Email", "Sms" }
+            var enabledChannels = new[] { "Slack", "Teams", "Email", "Sms", "WhatsApp" }
                 .Where(name => configuration.GetValue($"Messaging:{name}:Enabled", false))
                 .ToArray();
             checks.Add(new(
@@ -178,11 +178,15 @@ public sealed class EbolitoEngineeringDiagnostics(
 
             if (configuration.GetValue("Messaging:WhatsApp:Enabled", false))
             {
+                var endpointSecretName = configuration["Messaging:WhatsApp:EndpointSecretName"] ?? "messaging/whatsapp/endpoint";
+                var tokenSecretName = configuration["Messaging:WhatsApp:ApiTokenSecretName"] ?? "messaging/whatsapp/api-token";
                 checks.Add(new(
                     "messaging.whatsapp-provider",
                     "WhatsApp provider",
-                    EngineeringDiagnosticStatus.InterventionRequired,
-                    "WhatsApp is enabled in Ebolito configuration, but the deployed Common.Messaging workspace must include its concrete WhatsApp provider before Ebolito can advertise it as available."));
+                    commonMessagingCompiled ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.InterventionRequired,
+                    commonMessagingCompiled
+                        ? $"Common.Messaging WhatsApp provider is compiled. Configure gateway secrets '{endpointSecretName}' and '{tokenSecretName}' in the deployment secret source."
+                        : "WhatsApp is enabled but Common.Messaging is not compiled into this deployment."));
             }
         }
 
