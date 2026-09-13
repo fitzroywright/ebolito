@@ -1,6 +1,19 @@
 namespace Ebolito.Domain;
 
-public enum EngagementChannel { WhatsApp, Sms, Web }
+public enum EngagementChannel
+{
+    WhatsApp = 0,
+    Sms = 1,
+    Web = 2,
+    Email = 3,
+    Slack = 4,
+    Teams = 5,
+    Push = 6,
+    Webhook = 7,
+    Messenger = 8,
+    Instagram = 9
+}
+
 public enum EngagementStatus { Requested, Delivered, Accepted, Declined, Contacted, Hired, Completed, Reviewed }
 
 public sealed record Skill(Guid Id, string Name, IReadOnlyCollection<string> Synonyms);
@@ -93,7 +106,22 @@ public sealed class Engagement
         UpdatedAt = updatedAt
     };
 
-    public void MarkDelivered(EngagementChannel channel) => Transition(EngagementStatus.Delivered, channel);
+    public void RecordDelivery(EngagementChannel channel)
+    {
+        if (Status == EngagementStatus.Requested)
+        {
+            Status = EngagementStatus.Delivered;
+        }
+        else if (Status != EngagementStatus.Delivered)
+        {
+            throw new InvalidOperationException($"Cannot record delivery while engagement is {Status}.");
+        }
+
+        DeliveredChannel = channel;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void MarkDelivered(EngagementChannel channel) => RecordDelivery(channel);
     public void Accept() => Transition(EngagementStatus.Accepted);
     public void Decline() => Transition(EngagementStatus.Declined);
     public void MarkContacted() => Transition(EngagementStatus.Contacted);
@@ -101,19 +129,17 @@ public sealed class Engagement
     public void Complete() => Transition(EngagementStatus.Completed);
     public void MarkReviewed() => Transition(EngagementStatus.Reviewed);
 
-    private void Transition(EngagementStatus next, EngagementChannel? channel = null)
+    private void Transition(EngagementStatus next)
     {
         if (!CanTransition(Status, next))
             throw new InvalidOperationException($"Cannot transition engagement from {Status} to {next}.");
 
         Status = next;
-        DeliveredChannel = channel ?? DeliveredChannel;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
     private static bool CanTransition(EngagementStatus current, EngagementStatus next) => (current, next) switch
     {
-        (EngagementStatus.Requested, EngagementStatus.Delivered) => true,
         (EngagementStatus.Delivered, EngagementStatus.Accepted or EngagementStatus.Declined) => true,
         (EngagementStatus.Accepted, EngagementStatus.Contacted or EngagementStatus.Hired) => true,
         (EngagementStatus.Contacted, EngagementStatus.Hired) => true,
