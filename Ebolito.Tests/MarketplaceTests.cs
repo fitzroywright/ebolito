@@ -97,8 +97,9 @@ public sealed class MarketplaceTests
         var service = new CustomerIdentityService(store, challenges, sender);
 
         var challenge = await service.StartAsync(new MobileVerificationStart("Test User", "8765553434"));
+        var wrongCode = sender.LastCode == "000000" ? "000001" : "000000";
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CompleteAsync(new MobileVerificationComplete(challenge.Id, "000000")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CompleteAsync(new MobileVerificationComplete(challenge.Id, wrongCode)));
     }
 
     private sealed class CapturingVerificationSender : IMobileVerificationSender
