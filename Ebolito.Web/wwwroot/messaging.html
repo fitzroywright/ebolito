@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" data-theme="modern">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ebolito Messaging Policy</title>
+  <link rel="stylesheet" href="/css/site.css">
+  <style>
+    .shell{max-width:1100px;margin:30px auto;padding:0 20px}.card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:18px;margin-bottom:18px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card label{display:block;margin:10px 0}.card input,.card select,.card textarea{width:100%;box-sizing:border-box;padding:9px}.card textarea{min-height:140px;font-family:monospace}.actions{display:flex;gap:10px;flex-wrap:wrap}.capabilities{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}.cap{border:1px solid #ddd;border-radius:8px;padding:10px}.on{font-weight:700}.off{opacity:.65}@media(max-width:760px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <h1>Professional Messaging Policy</h1>
+    <p>Ebolito owns routing policy. Common.Messaging owns transport. In-app Ebolito delivery remains canonical and does not need to be configured here.</p>
+
+    <section class="card">
+      <div class="grid">
+        <label>Professional ID<input data-professional-id placeholder="Professional GUID"></label>
+        <label>Administration key<input data-admin-key type="password" autocomplete="current-password"></label>
+      </div>
+      <div class="actions"><button type="button" data-load>Load policy</button><a href="/inbox.html">Engagement inbox</a><a href="/manage.html">Profile management</a></div>
+      <p data-global-status></p>
+    </section>
+
+    <section class="card">
+      <h2>Transport capabilities</h2>
+      <div class="capabilities" data-capabilities><p>Load policy to inspect deployment capabilities.</p></div>
+    </section>
+
+    <section class="card">
+      <h2>Routing policy</h2>
+      <form data-policy-form>
+        <div class="grid">
+          <label>Primary channel<select name="primaryChannel" required></select></label>
+          <label>Business channel<select name="businessChannel"></select></label>
+          <label>Fallback channel<select name="fallbackChannel" required></select></label>
+          <label>Escalate after (minutes)<input name="escalationAfterMinutes" type="number" min="1" max="1440" required></label>
+        </div>
+        <label>Escalation order <small>comma-separated channel names; do not include Ebolito/Web</small><input name="escalationOrder" placeholder="Slack, Email, SMS"></label>
+        <label>Endpoints <small>one per line: Channel|Address|Label|Enabled</small><textarea name="endpoints" placeholder="Slack|#new-leads|Sales leads|true&#10;Email|leads@example.com|Business email|true&#10;SMS|+18765550102|Fallback mobile|true"></textarea></label>
+        <div class="actions"><button type="submit">Save routing policy</button></div>
+        <p data-policy-status></p>
+      </form>
+    </section>
+  </main>
+  <script src="/js/messaging-policy.js"></script>
+</body>
+</html>
