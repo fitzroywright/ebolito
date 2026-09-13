@@ -25,7 +25,7 @@ public sealed record EngagementRequest(
     Guid? SkillId,
     string RequestText,
     string Location,
-    EngagementChannel PreferredChannel);
+    EngagementChannel CustomerPreferredContactChannel = EngagementChannel.WhatsApp);
 
 public enum EngagementResponse { Accept, Decline }
 
@@ -42,11 +42,22 @@ public interface IMarketplaceStore
     Task SaveCustomerAsync(CustomerIdentity customer, CancellationToken cancellationToken = default);
     Task SaveEngagementAsync(Engagement engagement, CancellationToken cancellationToken = default);
     Task<Engagement?> GetEngagementAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<Engagement>> GetUnacknowledgedEngagementsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default);
+    Task<ProfessionalNotificationPolicy> GetNotificationPolicyAsync(Guid professionalId, CancellationToken cancellationToken = default);
+    Task SaveDeliveryAttemptAsync(EngagementDeliveryAttempt attempt, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<EngagementDeliveryAttempt>> GetDeliveryAttemptsAsync(Guid engagementId, CancellationToken cancellationToken = default);
 }
 
 public interface IEngagementNotifier
 {
-    Task<EngagementChannel> DeliverAsync(Professional professional, CustomerIdentity customer, Engagement engagement, CancellationToken cancellationToken = default);
+    Task<EngagementChannel> DeliverAsync(
+        Professional professional,
+        CustomerIdentity customer,
+        Engagement engagement,
+        ProfessionalNotificationPolicy policy,
+        IReadOnlyCollection<EngagementDeliveryAttempt> previousAttempts,
+        CancellationToken cancellationToken = default);
+
     Task NotifyCustomerAsync(CustomerIdentity customer, Professional professional, Engagement engagement, CancellationToken cancellationToken = default);
 }
 
@@ -56,6 +67,7 @@ public interface IMarketplaceService
     Task<ProfessionalProfile?> GetProfileAsync(string slug, CancellationToken cancellationToken = default);
     Task<Engagement> RequestEngagementAsync(EngagementRequest request, CancellationToken cancellationToken = default);
     Task<Engagement> RespondToEngagementAsync(Guid engagementId, EngagementResponse response, CancellationToken cancellationToken = default);
+    Task<bool> EscalateEngagementAsync(Guid engagementId, CancellationToken cancellationToken = default);
 }
 
 public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotifier notifier) : IMarketplaceService
@@ -133,13 +145,11 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
             SkillId = request.SkillId,
             RequestText = request.RequestText.Trim(),
             Location = request.Location.Trim(),
-            RequestedChannel = request.PreferredChannel
+            RequestedChannel = request.CustomerPreferredContactChannel
         };
 
         await store.SaveEngagementAsync(engagement, cancellationToken);
-        var deliveredChannel = await notifier.DeliverAsync(professional, customer, engagement, cancellationToken);
-        engagement.MarkDelivered(deliveredChannel);
-        await store.SaveEngagementAsync(engagement, cancellationToken);
+        await DeliverAndRecordAsync(professional, customer, engagement, cancellationToken);
         return engagement;
     }
 
@@ -158,5 +168,32 @@ public sealed class MarketplaceService(IMarketplaceStore store, IEngagementNotif
         await store.SaveEngagementAsync(engagement, cancellationToken);
         await notifier.NotifyCustomerAsync(customer, professional, engagement, cancellationToken);
         return engagement;
+    }
+
+    public async Task<bool> EscalateEngagementAsync(Guid engagementId, CancellationToken cancellationToken = default)
+    {
+        var engagement = await store.GetEngagementAsync(engagementId, cancellationToken);
+        if (engagement is null || engagement.Status != EngagementStatus.Delivered) return false;
+
+        var professional = await store.GetProfessionalAsync(engagement.ProfessionalId, cancellationToken);
+        var customer = await store.GetCustomerAsync(engagement.CustomerId, cancellationToken);
+        if (professional is null || customer is null) return false;
+
+        var before = engagement.DeliveredChannel;
+        await DeliverAndRecordAsync(professional, customer, engagement, cancellationToken);
+        return engagement.DeliveredChannel != before;
+    }
+
+    private async Task DeliverAndRecordAsync(Professional professional, CustomerIdentity customer, Engagement engagement, CancellationToken cancellationToken)
+    {
+        var policy = await store.GetNotificationPolicyAsync(professional.Id, cancellationToken);
+        var attempts = await store.GetDeliveryAttemptsAsync(engagement.Id, cancellationToken);
+        var deliveredChannel = await notifier.DeliverAsync(professional, customer, engagement, policy, attempts, cancellationToken);
+
+        await store.SaveDeliveryAttemptAsync(new EngagementDeliveryAttempt(
+            Guid.NewGuid(), engagement.Id, deliveredChannel, DateTimeOffset.UtcNow, true, "Delivered by configured channel router."), cancellationToken);
+
+        engagement.RecordDelivery(deliveredChannel);
+        await store.SaveEngagementAsync(engagement, cancellationToken);
     }
 }
