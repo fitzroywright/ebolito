@@ -9,7 +9,7 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
     private readonly IReadOnlyCollection<Skill> _skills;
     private readonly ConcurrentDictionary<Guid, Professional> _professionals = new();
     private readonly ConcurrentDictionary<Guid, PortfolioProject> _projects = new();
-    private readonly IReadOnlyCollection<Review> _reviews;
+    private readonly ConcurrentDictionary<Guid, Review> _reviews = new();
     private readonly ConcurrentDictionary<Guid, CustomerIdentity> _customers = new();
     private readonly ConcurrentDictionary<Guid, Engagement> _engagements = new();
     private readonly ConcurrentDictionary<Guid, ProfessionalNotificationPolicy> _notificationPolicies = new();
@@ -58,11 +58,8 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
         _projects[beverlyProject.Id] = beverlyProject;
         _projects[marcusProject.Id] = marcusProject;
 
-        _reviews =
-        [
-            new Review(Guid.NewGuid(), beverlyId, null, "C. Wallace", 5, "Professional, on time and very knowledgeable.", DateTimeOffset.UtcNow.AddDays(-35), false),
-            new Review(Guid.NewGuid(), marcusId, null, "A. Grant", 5, "Excellent workmanship and communication.", DateTimeOffset.UtcNow.AddDays(-18), false)
-        ];
+        AddSeedReview(new Review(Guid.NewGuid(), beverlyId, null, "C. Wallace", 5, "Professional, on time and very knowledgeable.", DateTimeOffset.UtcNow.AddDays(-35), false));
+        AddSeedReview(new Review(Guid.NewGuid(), marcusId, null, "A. Grant", 5, "Excellent workmanship and communication.", DateTimeOffset.UtcNow.AddDays(-18), false));
 
         var demoCustomer = new CustomerIdentity(Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), "Demo Customer", "+18765550999", "customer@example.com");
         _customers[demoCustomer.Id] = demoCustomer;
@@ -76,7 +73,15 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
     public Task<IReadOnlyCollection<PortfolioProject>> GetProjectsAsync(Guid professionalId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<PortfolioProject>>(_projects.Values.Where(x => x.ProfessionalId == professionalId).OrderByDescending(x => x.IsFeatured).ThenByDescending(x => x.CompletedOn).ToArray());
     public Task SavePortfolioProjectAsync(PortfolioProject project, CancellationToken cancellationToken = default) { _projects[project.Id] = project; return Task.CompletedTask; }
     public Task<bool> DeletePortfolioProjectAsync(Guid professionalId, Guid projectId, CancellationToken cancellationToken = default) => Task.FromResult(_projects.TryGetValue(projectId, out var project) && project.ProfessionalId == professionalId && _projects.TryRemove(projectId, out _));
-    public Task<IReadOnlyCollection<Review>> GetReviewsAsync(Guid professionalId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<Review>>(_reviews.Where(x => x.ProfessionalId == professionalId).OrderByDescending(x => x.CreatedAt).ToArray());
+    public Task<IReadOnlyCollection<Review>> GetReviewsAsync(Guid professionalId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<Review>>(_reviews.Values.Where(x => x.ProfessionalId == professionalId).OrderByDescending(x => x.CreatedAt).ToArray());
+    public Task<Review?> GetReviewByEngagementAsync(Guid engagementId, CancellationToken cancellationToken = default) => Task.FromResult(_reviews.Values.FirstOrDefault(x => x.EngagementId == engagementId));
+    public Task SaveReviewAsync(Review review, CancellationToken cancellationToken = default)
+    {
+        if (review.EngagementId is Guid engagementId && _reviews.Values.Any(x => x.EngagementId == engagementId && x.Id != review.Id))
+            throw new InvalidOperationException("This engagement has already been reviewed.");
+        _reviews[review.Id] = review;
+        return Task.CompletedTask;
+    }
     public Task<CustomerIdentity?> GetCustomerAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_customers.TryGetValue(id, out var value) ? value : null);
     public Task<CustomerIdentity?> GetCustomerByMobileAsync(string mobileNumber, CancellationToken cancellationToken = default) => Task.FromResult(_customers.Values.FirstOrDefault(x => x.VerifiedMobileNumber.Equals(mobileNumber, StringComparison.OrdinalIgnoreCase)));
     public Task SaveCustomerAsync(CustomerIdentity customer, CancellationToken cancellationToken = default) { _customers[customer.Id] = customer; return Task.CompletedTask; }
@@ -104,6 +109,8 @@ public sealed class InMemoryMarketplaceStore : IMarketplaceStore
 
     public Task<IReadOnlyCollection<EngagementDeliveryAttempt>> GetDeliveryAttemptsAsync(Guid engagementId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyCollection<EngagementDeliveryAttempt>>(_deliveryAttempts.TryGetValue(engagementId, out var attempts) ? attempts.ToArray() : []);
+
+    private void AddSeedReview(Review review) => _reviews[review.Id] = review;
 }
 
 public sealed class FallbackEngagementNotifier : IEngagementNotifier
