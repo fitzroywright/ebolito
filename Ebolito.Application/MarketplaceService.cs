@@ -19,7 +19,10 @@ public interface IMarketplaceStore
     Task<IReadOnlyCollection<Professional>> GetProfessionalsAsync(CancellationToken cancellationToken = default);
     Task<Professional?> GetProfessionalAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Professional?> GetProfessionalBySlugAsync(string slug, CancellationToken cancellationToken = default);
+    Task SaveProfessionalAsync(Professional professional, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<PortfolioProject>> GetProjectsAsync(Guid professionalId, CancellationToken cancellationToken = default);
+    Task SavePortfolioProjectAsync(PortfolioProject project, CancellationToken cancellationToken = default);
+    Task<bool> DeletePortfolioProjectAsync(Guid professionalId, Guid projectId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Review>> GetReviewsAsync(Guid professionalId, CancellationToken cancellationToken = default);
     Task<CustomerIdentity?> GetCustomerAsync(Guid id, CancellationToken cancellationToken = default);
     Task<CustomerIdentity?> GetCustomerByMobileAsync(string mobileNumber, CancellationToken cancellationToken = default);
