@@ -3,11 +3,16 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildProjectDirectory)/../../Common</CommonRoot>
+    <UseCommonMessaging Condition="'$(UseCommonMessaging)' == '' and Exists('$(CommonRoot)/Common.Messaging/Common.Messaging.csproj') and Exists('$(CommonRoot)/Common.Messaging/Common.Messaging.Hosting/Common.Messaging.Hosting.csproj')">true</UseCommonMessaging>
+    <DefineConstants Condition="'$(UseCommonMessaging)' == 'true'">$(DefineConstants);COMMON_MESSAGING</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Ebolito.Domain/Ebolito.Domain.csproj" />
     <ProjectReference Include="../Ebolito.Application/Ebolito.Application.csproj" />
     <ProjectReference Include="../Ebolito.Infrastructure/Ebolito.Infrastructure.csproj" />
+    <ProjectReference Condition="'$(UseCommonMessaging)' == 'true'" Include="$(CommonRoot)/Common.Messaging/Common.Messaging.csproj" />
+    <ProjectReference Condition="'$(UseCommonMessaging)' == 'true'" Include="$(CommonRoot)/Common.Messaging/Common.Messaging.Hosting/Common.Messaging.Hosting.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="Configuration/ebolito.configuration-contract.json">
