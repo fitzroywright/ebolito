@@ -67,6 +67,32 @@ public sealed class Engagement
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; private set; } = DateTimeOffset.UtcNow;
 
+    public static Engagement Restore(
+        Guid id,
+        Guid professionalId,
+        Guid customerId,
+        Guid? skillId,
+        string requestText,
+        string location,
+        EngagementChannel requestedChannel,
+        EngagementChannel? deliveredChannel,
+        EngagementStatus status,
+        DateTimeOffset createdAt,
+        DateTimeOffset updatedAt) => new()
+    {
+        Id = id,
+        ProfessionalId = professionalId,
+        CustomerId = customerId,
+        SkillId = skillId,
+        RequestText = requestText,
+        Location = location,
+        RequestedChannel = requestedChannel,
+        DeliveredChannel = deliveredChannel,
+        Status = status,
+        CreatedAt = createdAt,
+        UpdatedAt = updatedAt
+    };
+
     public void MarkDelivered(EngagementChannel channel) => Transition(EngagementStatus.Delivered, channel);
     public void Accept() => Transition(EngagementStatus.Accepted);
     public void Decline() => Transition(EngagementStatus.Declined);
