@@ -24,7 +24,7 @@ public static class PortfolioMediaEndpoints
             var normalizedType = NormalizeImageContentType(file.ContentType);
             if (normalizedType is null) return Results.BadRequest(new { error = "Only JPEG, PNG and WebP portfolio images are accepted." });
 
-            await using var upload = file.OpenReadStream(MaximumImageBytes);
+            await using var upload = file.OpenReadStream();
             if (!await HasExpectedImageSignatureAsync(upload, normalizedType, ct))
                 return Results.BadRequest(new { error = "The uploaded file content does not match its image type." });
             upload.Position = 0;
