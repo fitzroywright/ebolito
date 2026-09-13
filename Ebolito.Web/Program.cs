@@ -38,6 +38,7 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapProfessionalNotificationPolicyEndpoints();
+app.MapVerifiedReviewEndpoints();
 
 async Task<IResult> ReadyResult(IMarketplaceStore store, CancellationToken ct)
 {
