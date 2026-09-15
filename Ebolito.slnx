@@ -6,6 +6,7 @@
   <Project Path="../Common/Common.Messaging/Common.Messaging.Hosting/Common.Messaging.Hosting.csproj" />
   <Project Path="../Common/Common.Secrets/Common.Secrets.csproj" />
   <Project Path="../Common/Common.Storage/Common.Storage.csproj" />
+  <Project Path="../Common/Common.Registration/Common.Registration.csproj" />
   <Project Path="Ebolito.Application/Ebolito.Application.csproj" />
   <Project Path="Ebolito.Domain/Ebolito.Domain.csproj" />
   <Project Path="Ebolito.Infrastructure/Ebolito.Infrastructure.csproj" />

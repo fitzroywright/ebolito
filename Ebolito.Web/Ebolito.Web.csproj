@@ -13,6 +13,7 @@
     <ProjectReference Include="../Ebolito.Domain/Ebolito.Domain.csproj" />
     <ProjectReference Include="../Ebolito.Application/Ebolito.Application.csproj" />
     <ProjectReference Include="../Ebolito.Infrastructure/Ebolito.Infrastructure.csproj" />
+    <ProjectReference Include="$(CommonRoot)/Common.Registration/Common.Registration.csproj" />
     <ProjectReference Condition="'$(UseCommonMessaging)' == 'true'" Include="$(CommonRoot)/Common.Messaging/Common.Messaging.csproj" />
     <ProjectReference Condition="'$(UseCommonMessaging)' == 'true'" Include="$(CommonRoot)/Common.Messaging/Common.Messaging.Hosting/Common.Messaging.Hosting.csproj" />
     <ProjectReference Condition="'$(UseCommonStorage)' == 'true'" Include="$(CommonRoot)/Common.Storage/Common.Storage.csproj" />

@@ -20,16 +20,22 @@ jobs:
       - name: Checkout Ebolito
         uses: actions/checkout@v4
 
+      - name: Checkout Common.Registration
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Registration
+          path: Common/Common.Registration
+
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
       - name: Restore web host
-        run: dotnet restore Ebolito.Web/Ebolito.Web.csproj
+        run: dotnet restore Ebolito.Web/Ebolito.Web.csproj -p:CommonRoot="${{ github.workspace }}/Common"
 
       - name: Build web host
-        run: dotnet build Ebolito.Web/Ebolito.Web.csproj --no-restore --configuration Release
+        run: dotnet build Ebolito.Web/Ebolito.Web.csproj --no-restore --configuration Release -p:CommonRoot="${{ github.workspace }}/Common"
 
       - name: Restore tests
         run: dotnet restore Ebolito.Tests/Ebolito.Tests.csproj
@@ -76,6 +82,12 @@ jobs:
           repository: fitzroywright/Common.Storage
           path: Common/Common.Storage
 
+      - name: Checkout Common.Registration
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Registration
+          path: Common/Common.Registration
+
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
@@ -84,5 +96,5 @@ jobs:
       - name: Restore with Common workspace
         run: dotnet restore Ebolito.Web/Ebolito.Web.csproj -p:CommonRoot="${{ github.workspace }}/Common"
 
-      - name: Build with Common.Messaging, Diagnostics, Secrets and Storage
+      - name: Build with Common workspace
         run: dotnet build Ebolito.Web/Ebolito.Web.csproj --no-restore --configuration Release -p:CommonRoot="${{ github.workspace }}/Common"
