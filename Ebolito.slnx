@@ -1,6 +1,4 @@
 <Solution>
-  <Project Path="../Aegis.Configuration/Aegis.Configuration.Web/Aegis.Configuration.Web.csproj" />
-  <Project Path="../Aegis.Diagnostics/Aegis.Diagnostics.csproj" />
   <Project Path="../Common/Common.Diagnostics/Common.Diagnostics.csproj" />
   <Project Path="../Common/Common.Messaging/Common.Messaging.csproj" />
   <Project Path="../Common/Common.Messaging/Common.Messaging.Hosting/Common.Messaging.Hosting.csproj" />
