@@ -22,7 +22,9 @@ public sealed class ConfigurationRegistrationHostedService(
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            await TryRegisterAsync(baseUrl, stoppingToken);
+            if (await TryRegisterAsync(baseUrl, stoppingToken))
+                return;
+
             try
             {
                 await Task.Delay(RetryInterval, stoppingToken);
@@ -75,7 +77,7 @@ public sealed class ConfigurationRegistrationHostedService(
                 return false;
             }
 
-            logger.LogInformation("Ebolito configuration contract registered with Aegis.Configuration with HTTP {StatusCode}.", (int?)result.StatusCode);
+            logger.LogInformation("Ebolito configuration contract registered once with Aegis.Configuration with HTTP {StatusCode}.", (int?)result.StatusCode);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
