@@ -10,7 +10,6 @@ using Common.Messaging.Hosting;
 using Ebolito.Application;
 using Ebolito.Domain;
 using Ebolito.Infrastructure;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Ebolito.Web;
 
@@ -29,7 +28,9 @@ public static class CommonMessagingBootstrap
         else
             services.AddCommonMessagingQueuedDelivery(durable: false);
 
-        services.TryAddSingleton<IChannelSecretResolver, EnvironmentChannelSecretResolver>();
+        // Keep applications provider-neutral: Common.Messaging resolves channel secrets
+        // through Common.Secrets, which then selects the configured provider.
+        services.AddCommonMessagingSecrets();
 
         var supported = new HashSet<EngagementChannel>();
 
@@ -115,20 +116,6 @@ public static class CommonMessagingBootstrap
             provider.GetRequiredService<IExternalDeliveryQueue>(),
             provider.GetRequiredService<IReadOnlySet<EngagementChannel>>(),
             provider.GetService<IEngagementActionLinkBuilder>()));
-    }
-}
-
-public sealed class EnvironmentChannelSecretResolver : IChannelSecretResolver
-{
-    public Task<string?> GetSecretAsync(string secretName, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(secretName)) return Task.FromResult<string?>(null);
-
-        var environmentName = new string(secretName
-            .Select(ch => char.IsLetterOrDigit(ch) ? char.ToUpperInvariant(ch) : '_')
-            .ToArray());
-
-        return Task.FromResult(Environment.GetEnvironmentVariable(environmentName));
     }
 }
 #endif
