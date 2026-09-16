@@ -7,6 +7,7 @@ using Common.Messaging.Channels.Smtp;
 using Common.Messaging.Channels.Teams;
 using Common.Messaging.Channels.WhatsApp;
 using Common.Messaging.Hosting;
+using Common.Secrets;
 using Ebolito.Application;
 using Ebolito.Domain;
 using Ebolito.Infrastructure;
@@ -30,6 +31,7 @@ public static class CommonMessagingBootstrap
 
         // Keep applications provider-neutral: Common.Messaging resolves channel secrets
         // through Common.Secrets, which then selects the configured provider.
+        services.AddCommonSecrets(configuration);
         services.AddCommonMessagingSecrets();
 
         var supported = new HashSet<EngagementChannel>();
