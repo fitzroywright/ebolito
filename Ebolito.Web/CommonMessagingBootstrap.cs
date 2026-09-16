@@ -1,5 +1,6 @@
 #if COMMON_MESSAGING
 using Common.Messaging;
+using Common.Messaging.Channels.MicrosoftGraph;
 using Common.Messaging.Channels.Slack;
 using Common.Messaging.Channels.Sms;
 using Common.Messaging.Channels.Smtp;
@@ -50,6 +51,17 @@ public static class CommonMessagingBootstrap
             supported.Add(EngagementChannel.Teams);
         }
 
+        if (configuration.GetValue("Messaging:MicrosoftGraph:Teams:Enabled", false))
+        {
+            services.AddMicrosoftGraphTeamsMessagingChannel(new MicrosoftGraphTeamsOptions
+            {
+                SenderUpn = configuration["Messaging:MicrosoftGraph:Teams:SenderUpn"] ?? string.Empty,
+                DelegatedAccessTokenSecretName = configuration["Messaging:MicrosoftGraph:Teams:DelegatedAccessTokenSecretName"]
+                    ?? "messaging/msgraph/teams/delegated-access-token"
+            });
+            supported.Add(EngagementChannel.Teams);
+        }
+
         if (configuration.GetValue("Messaging:Email:Enabled", false))
         {
             services.AddSmtpMessagingChannel(new SmtpMessageOptions
@@ -60,6 +72,19 @@ public static class CommonMessagingBootstrap
                 FromAddress = configuration["Messaging:Email:FromAddress"] ?? string.Empty,
                 UserNameSecretName = configuration["Messaging:Email:UserNameSecretName"] ?? "messaging/smtp/username",
                 PasswordSecretName = configuration["Messaging:Email:PasswordSecretName"] ?? "messaging/smtp/password"
+            });
+            supported.Add(EngagementChannel.Email);
+        }
+
+        if (configuration.GetValue("Messaging:MicrosoftGraph:Email:Enabled", false))
+        {
+            services.AddMicrosoftGraphEmailMessagingChannel(new MicrosoftGraphEmailOptions
+            {
+                TenantId = configuration["Messaging:MicrosoftGraph:TenantId"] ?? string.Empty,
+                ClientId = configuration["Messaging:MicrosoftGraph:ClientId"] ?? string.Empty,
+                SenderUpn = configuration["Messaging:MicrosoftGraph:Email:SenderUpn"] ?? string.Empty,
+                ClientSecretName = configuration["Messaging:MicrosoftGraph:ClientSecretName"]
+                    ?? "messaging/msgraph/client-secret"
             });
             supported.Add(EngagementChannel.Email);
         }
