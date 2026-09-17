@@ -34,11 +34,11 @@ public sealed class InMemoryVerificationChallengeStore : IVerificationChallengeS
     }
 }
 
-public sealed class DevelopmentMobileVerificationSender : IMobileVerificationSender
+public sealed class ConsoleMobileVerificationSender : IMobileVerificationSender
 {
     public Task SendCodeAsync(string mobileNumber, string code, CancellationToken cancellationToken = default)
     {
-        Console.WriteLine($"[Ebolito development verification] {mobileNumber}: {code}");
+        Console.WriteLine($"[Ebolito console verification] {mobileNumber}: {code}");
         return Task.CompletedTask;
     }
 }
@@ -46,5 +46,5 @@ public sealed class DevelopmentMobileVerificationSender : IMobileVerificationSen
 public sealed class DisabledMobileVerificationSender : IMobileVerificationSender
 {
     public Task SendCodeAsync(string mobileNumber, string code, CancellationToken cancellationToken = default) =>
-        throw new InvalidOperationException("Mobile verification delivery is not configured. Configure Common.Messaging/SMS before enabling production verification.");
+        throw new InvalidOperationException("Mobile verification delivery is not configured. Configure a delivery provider before enabling mobile verification.");
 }
