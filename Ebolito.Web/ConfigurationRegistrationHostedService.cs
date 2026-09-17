@@ -75,7 +75,8 @@ public sealed class ConfigurationRegistrationHostedService(
             bool professionalSigningConfigured = await HasSecretAsync("ebolito/session/professional-signing-key", cancellationToken);
             bool publicBaseUrlConfigured = HasValue(configuration["Ebolito:PublicBaseUrl"]);
             bool portfolioStorageConfigured = HasValue(configuration["Storage:Root"]);
-            bool messagingConfigured = IsMessagingConfigured();
+            bool messagingConfigured = await IsMessagingConfiguredAsync(cancellationToken);
+            bool diagnosticsConfigured = HasValue(configuration["Aegis:Diagnostics:Url"]);
 
             if (contract["requirements"] is JsonArray requirements)
             {
@@ -90,8 +91,8 @@ public sealed class ConfigurationRegistrationHostedService(
                         "customer-session-signing" => (customerSigningConfigured, "EB-CONFIG-SEC-001: Customer session signing key must resolve through Common.Secrets."),
                         "professional-session-signing" => (professionalSigningConfigured, "EB-CONFIG-SEC-002: Professional session signing key must resolve through Common.Secrets."),
                         "portfolio-storage" => (portfolioStorageConfigured, "EB-CONFIG-STORAGE-001: Storage:Root must be configured."),
-                        "messaging" => (messagingConfigured, "EB-CONFIG-MSG-001: Common.Messaging must have durable delivery and at least one enabled delivery channel."),
-                        "diagnostics" => (true, null),
+                        "messaging" => (messagingConfigured, "EB-CONFIG-MSG-001: Common.Messaging must have durable delivery and at least one fully commissioned delivery channel."),
+                        "diagnostics" => (diagnosticsConfigured, "EB-CONFIG-DIAG-001: Aegis:Diagnostics:Url must be configured."),
                         _ => (false, "No runtime commissioning evaluator is defined for this requirement.")
                     };
 
@@ -124,18 +125,71 @@ public sealed class ConfigurationRegistrationHostedService(
         }
     }
 
-    private bool IsMessagingConfigured()
+    private async Task<bool> IsMessagingConfiguredAsync(CancellationToken cancellationToken)
     {
-        bool durable = configuration.GetValue("Messaging:DurableQueue", true);
-        bool hasChannel =
-            configuration.GetValue("Messaging:Slack:Enabled", false) ||
-            configuration.GetValue("Messaging:Teams:Enabled", false) ||
-            configuration.GetValue("Messaging:MicrosoftGraph:Teams:Enabled", false) ||
-            configuration.GetValue("Messaging:Email:Enabled", false) ||
-            configuration.GetValue("Messaging:MicrosoftGraph:Email:Enabled", false) ||
-            configuration.GetValue("Messaging:Sms:Enabled", false) ||
-            configuration.GetValue("Messaging:WhatsApp:Enabled", false);
-        return durable && hasChannel;
+        if (!configuration.GetValue("Messaging:DurableQueue", true)) return false;
+
+        bool anyEnabled = false;
+        bool allEnabledChannelsConfigured = true;
+
+        if (configuration.GetValue("Messaging:Slack:Enabled", false))
+        {
+            anyEnabled = true;
+            string secretName = configuration["Messaging:Slack:BotTokenSecretName"] ?? "messaging/slack/bot-token";
+            allEnabledChannelsConfigured &= await HasSecretAsync(secretName, cancellationToken);
+        }
+
+        if (configuration.GetValue("Messaging:Teams:Enabled", false))
+        {
+            anyEnabled = true;
+            string secretName = configuration["Messaging:Teams:WebhookSecretName"] ?? "messaging/teams/webhook-url";
+            allEnabledChannelsConfigured &= await HasSecretAsync(secretName, cancellationToken);
+        }
+
+        if (configuration.GetValue("Messaging:MicrosoftGraph:Teams:Enabled", false))
+        {
+            anyEnabled = true;
+            string tokenName = configuration["Messaging:MicrosoftGraph:Teams:DelegatedAccessTokenSecretName"] ?? "messaging/msgraph/teams/delegated-access-token";
+            allEnabledChannelsConfigured &= HasValue(configuration["Messaging:MicrosoftGraph:Teams:SenderUpn"])
+                && await HasSecretAsync(tokenName, cancellationToken);
+        }
+
+        if (configuration.GetValue("Messaging:Email:Enabled", false))
+        {
+            anyEnabled = true;
+            allEnabledChannelsConfigured &= HasValue(configuration["Messaging:Email:Host"])
+                && HasValue(configuration["Messaging:Email:FromAddress"]);
+        }
+
+        if (configuration.GetValue("Messaging:MicrosoftGraph:Email:Enabled", false))
+        {
+            anyEnabled = true;
+            string secretName = configuration["Messaging:MicrosoftGraph:ClientSecretName"] ?? "messaging/msgraph/client-secret";
+            allEnabledChannelsConfigured &= HasValue(configuration["Messaging:MicrosoftGraph:TenantId"])
+                && HasValue(configuration["Messaging:MicrosoftGraph:ClientId"])
+                && HasValue(configuration["Messaging:MicrosoftGraph:Email:SenderUpn"])
+                && await HasSecretAsync(secretName, cancellationToken);
+        }
+
+        if (configuration.GetValue("Messaging:Sms:Enabled", false))
+        {
+            anyEnabled = true;
+            string endpointName = configuration["Messaging:Sms:EndpointSecretName"] ?? "messaging/sms/endpoint";
+            string tokenName = configuration["Messaging:Sms:ApiTokenSecretName"] ?? "messaging/sms/api-token";
+            allEnabledChannelsConfigured &= await HasSecretAsync(endpointName, cancellationToken)
+                && await HasSecretAsync(tokenName, cancellationToken);
+        }
+
+        if (configuration.GetValue("Messaging:WhatsApp:Enabled", false))
+        {
+            anyEnabled = true;
+            string endpointName = configuration["Messaging:WhatsApp:EndpointSecretName"] ?? "messaging/whatsapp/endpoint";
+            string tokenName = configuration["Messaging:WhatsApp:ApiTokenSecretName"] ?? "messaging/whatsapp/api-token";
+            allEnabledChannelsConfigured &= await HasSecretAsync(endpointName, cancellationToken)
+                && await HasSecretAsync(tokenName, cancellationToken);
+        }
+
+        return anyEnabled && allEnabledChannelsConfigured;
     }
 
     private async Task<bool> HasSecretAsync(string name, CancellationToken cancellationToken)
