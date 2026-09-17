@@ -10,11 +10,10 @@ public sealed class SecureEngagementActionLinks : IEngagementActionLinkBuilder
     private readonly byte[]? signingKey;
     private readonly TimeSpan lifetime;
 
-    public SecureEngagementActionLinks(IConfiguration configuration)
+    public SecureEngagementActionLinks(IConfiguration configuration, string? signingSecret)
     {
         publicBaseUrl = configuration["Ebolito:PublicBaseUrl"]?.TrimEnd('/');
-        var secret = Environment.GetEnvironmentVariable("EBOLITO_ENGAGEMENT_ACTION_KEY");
-        signingKey = string.IsNullOrWhiteSpace(secret) ? null : Encoding.UTF8.GetBytes(secret);
+        signingKey = string.IsNullOrWhiteSpace(signingSecret) ? null : Encoding.UTF8.GetBytes(signingSecret);
         lifetime = TimeSpan.FromHours(Math.Clamp(configuration.GetValue("Ebolito:EngagementActionLinkHours", 48), 1, 168));
     }
 
