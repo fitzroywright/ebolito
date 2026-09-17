@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildProjectDirectory)/../../Common</CommonRoot>
     <UseCommonStorage Condition="'$(UseCommonStorage)' == '' and Exists('$(CommonRoot)/Common.Storage/Common.Storage.csproj')">true</UseCommonStorage>
+    <DefineConstants>$(DefineConstants);COMMON_MESSAGING</DefineConstants>
     <DefineConstants Condition="'$(UseCommonStorage)' == 'true'">$(DefineConstants);COMMON_STORAGE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
