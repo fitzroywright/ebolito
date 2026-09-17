@@ -25,12 +25,7 @@ builder.Services.AddSingleton<CustomerSessionTokenService>();
 builder.Services.AddSingleton<ProfessionalSessionTokenService>();
 builder.Services.AddSingleton<ProfessionalSignInService>();
 builder.Services.AddSingleton<ProfessionalRegistrationService>();
-
-#if COMMON_MESSAGING
 builder.Services.AddEbolitoCommonMessaging(builder.Configuration, postgresConnection);
-#else
-builder.Services.AddSingleton<IEngagementNotifier, FallbackEngagementNotifier>();
-#endif
 
 builder.Services.AddSingleton<IMarketplaceService, MarketplaceService>();
 builder.Services.AddSingleton<IVerificationChallengeStore, InMemoryVerificationChallengeStore>();
