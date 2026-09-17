@@ -4,9 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildProjectDirectory)/../../Common</CommonRoot>
-    <UseCommonMessaging Condition="'$(UseCommonMessaging)' == '' and Exists('$(CommonRoot)/Common.Messaging/Common.Messaging.csproj') and Exists('$(CommonRoot)/Common.Messaging/Common.Messaging.Hosting/Common.Messaging.Hosting.csproj')">true</UseCommonMessaging>
     <UseCommonStorage Condition="'$(UseCommonStorage)' == '' and Exists('$(CommonRoot)/Common.Storage/Common.Storage.csproj')">true</UseCommonStorage>
-    <DefineConstants Condition="'$(UseCommonMessaging)' == 'true'">$(DefineConstants);COMMON_MESSAGING</DefineConstants>
     <DefineConstants Condition="'$(UseCommonStorage)' == 'true'">$(DefineConstants);COMMON_STORAGE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
@@ -15,8 +13,8 @@
     <ProjectReference Include="../Ebolito.Infrastructure/Ebolito.Infrastructure.csproj" />
     <ProjectReference Include="$(CommonRoot)/Common.Registration/Common.Registration.csproj" />
     <ProjectReference Include="$(CommonRoot)/Common.Secrets/Common.Secrets.csproj" />
-    <ProjectReference Condition="'$(UseCommonMessaging)' == 'true'" Include="$(CommonRoot)/Common.Messaging/Common.Messaging.csproj" />
-    <ProjectReference Condition="'$(UseCommonMessaging)' == 'true'" Include="$(CommonRoot)/Common.Messaging/Common.Messaging.Hosting/Common.Messaging.Hosting.csproj" />
+    <ProjectReference Include="$(CommonRoot)/Common.Messaging/Common.Messaging.csproj" />
+    <ProjectReference Include="$(CommonRoot)/Common.Messaging/Common.Messaging.Hosting/Common.Messaging.Hosting.csproj" />
     <ProjectReference Condition="'$(UseCommonStorage)' == 'true'" Include="$(CommonRoot)/Common.Storage/Common.Storage.csproj" />
   </ItemGroup>
   <ItemGroup>
