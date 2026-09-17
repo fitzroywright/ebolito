@@ -12,7 +12,7 @@ await using CommonSecretsBootstrapRuntime bootstrapSecrets = CommonSecretsBootst
 string? postgresConnection = await bootstrapSecrets.Provider.GetAsync("ConnectionStrings:Ebolito");
 string? engagementActionKey = await bootstrapSecrets.Provider.GetAsync("Ebolito:EngagementActionKey");
 
-builder.Services.AddCommonSecrets(builder.Configuration);
+bootstrapSecrets.Register(builder.Services);
 
 if (!string.IsNullOrWhiteSpace(postgresConnection))
     builder.Services.AddSingleton<IMarketplaceStore>(_ => new PostgresMarketplaceStore(postgresConnection));
