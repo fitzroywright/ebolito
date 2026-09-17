@@ -1,4 +1,5 @@
 using System.Net;
+using Common.Secrets;
 using Ebolito.Application;
 using Ebolito.Domain;
 using Ebolito.Infrastructure;
@@ -6,6 +7,8 @@ using Ebolito.Web;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddCommonSecrets(builder.Configuration);
 
 var postgresConnection = builder.Configuration.GetConnectionString("Ebolito");
 if (!string.IsNullOrWhiteSpace(postgresConnection))
@@ -145,7 +148,7 @@ app.MapPost("/engagements/{id:guid}/respond", async (Guid id, HttpRequest reques
     var form = await request.ReadFormAsync(ct); var decision = form["decision"].ToString().ToLowerInvariant();
     if (!long.TryParse(form["expires"], out var expires)) return Results.BadRequest("Invalid action link.");
     var sig = form["sig"].ToString(); if ((decision != "accept" && decision != "decline") || !links.Verify(id, decision, expires, sig)) return Results.Unauthorized();
-    try { var engagement = await marketplace.RespondToEngagementAsync(id, decision == "accept" ? EngagementResponse.Accept : EngagementResponse.Decline, ct); var message = engagement.Status == EngagementStatus.Accepted ? "You accepted the request. Ebolito has notified the customer." : "You declined the request. Ebolito has notified the customer."; return Results.Content($"<h1>Ebolito</h1><p>{WebUtility.HtmlEncode(message)}</p>", "text/html"); }
+    try { var engagement = await marketplace.RespondToEngagementAsync(id, decision == "accept" ? EngagementResponse.Accept : EngagementResponse.Decline, ct); var message = engagement.Status == EngagementStatus.Accepted ? "You accepted the request. Ebolito has notified the customer." : "You declined the request. Ebolito has notified the customer."; return Results.Content($"<h1>Ebolito</h1><p>{WebUtility.HtmlEncode(message)}</p>", "text/html", statusCode: StatusCodes.Status409Conflict); }
     catch (InvalidOperationException ex) { return Results.Content($"<h1>Ebolito</h1><p>{WebUtility.HtmlEncode(ex.Message)}</p>", "text/html", statusCode: StatusCodes.Status409Conflict); }
 });
 
