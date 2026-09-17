@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using Common.Secrets;
 using Ebolito.Application;
 
 namespace Ebolito.Web;
@@ -13,23 +14,25 @@ public sealed record ProfessionalSession(Guid ProfessionalId, string Token, Date
 public sealed class ProfessionalSessionTokenService
 {
     public const string HeaderName = "X-Ebolito-Professional-Session";
-    private readonly byte[] signingKey;
+    public const string SigningKeySecretName = "ebolito/session/professional-signing-key";
+
+    private readonly byte[]? signingKey;
     private readonly TimeSpan lifetime;
 
-    public ProfessionalSessionTokenService(IConfiguration configuration, IWebHostEnvironment environment)
+    public ProfessionalSessionTokenService(IConfiguration configuration, ISecretProvider secrets)
     {
-        var configured = Environment.GetEnvironmentVariable("EBOLITO_PROFESSIONAL_SESSION_KEY");
-        if (string.IsNullOrWhiteSpace(configured))
-        {
-            if (!environment.IsDevelopment()) throw new InvalidOperationException("EBOLITO_PROFESSIONAL_SESSION_KEY must be configured outside Development.");
-            configured = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        }
-        signingKey = Encoding.UTF8.GetBytes(configured);
+        var configured = ResolveSecret(secrets, SigningKeySecretName);
+        signingKey = string.IsNullOrWhiteSpace(configured) ? null : Encoding.UTF8.GetBytes(configured);
         lifetime = TimeSpan.FromHours(Math.Clamp(configuration.GetValue("Ebolito:ProfessionalSessionHours", 24 * 30), 1, 24 * 90));
     }
 
+    public bool IsConfigured => signingKey is not null;
+
     public ProfessionalSession Issue(Guid professionalId)
     {
+        if (signingKey is null)
+            throw new InvalidOperationException($"Professional session signing is not configured. Common.Secrets did not resolve '{SigningKeySecretName}'.");
+
         var expiresAt = DateTimeOffset.UtcNow.Add(lifetime);
         var expires = expiresAt.ToUnixTimeSeconds();
         return new ProfessionalSession(professionalId, $"{professionalId:D}.{expires}.{Sign(professionalId, expires)}", expiresAt);
@@ -44,7 +47,7 @@ public sealed class ProfessionalSessionTokenService
     public bool TryValidate(string? token, out Guid professionalId)
     {
         professionalId = Guid.Empty;
-        if (string.IsNullOrWhiteSpace(token)) return false;
+        if (signingKey is null || string.IsNullOrWhiteSpace(token)) return false;
         var parts = token.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (parts.Length != 3 || !Guid.TryParse(parts[0], out var parsedId) || !long.TryParse(parts[1], out var expires)) return false;
         if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() > expires) return false;
@@ -57,8 +60,20 @@ public sealed class ProfessionalSessionTokenService
 
     private string Sign(Guid professionalId, long expires)
     {
-        using var hmac = new HMACSHA256(signingKey);
+        using var hmac = new HMACSHA256(signingKey!);
         return Base64Url(hmac.ComputeHash(Encoding.UTF8.GetBytes($"professional|{professionalId:D}|{expires}")));
+    }
+
+    private static string? ResolveSecret(ISecretProvider secrets, string name)
+    {
+        try
+        {
+            return secrets.GetAsync(name).GetAwaiter().GetResult();
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException($"Common.Secrets could not resolve required Ebolito secret '{name}'.", exception);
+        }
     }
 
     private static string Base64Url(byte[] value) => Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_');
