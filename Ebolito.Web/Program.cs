@@ -8,15 +8,18 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
+await using CommonSecretsBootstrapRuntime bootstrapSecrets = CommonSecretsBootstrapRuntime.Create(builder.Configuration);
+string? postgresConnection = await bootstrapSecrets.Provider.GetAsync("ConnectionStrings:Ebolito");
+string? engagementActionKey = await bootstrapSecrets.Provider.GetAsync("Ebolito:EngagementActionKey");
+
 builder.Services.AddCommonSecrets(builder.Configuration);
 
-var postgresConnection = builder.Configuration.GetConnectionString("Ebolito");
 if (!string.IsNullOrWhiteSpace(postgresConnection))
     builder.Services.AddSingleton<IMarketplaceStore>(_ => new PostgresMarketplaceStore(postgresConnection));
 else
     builder.Services.AddSingleton<IMarketplaceStore, InMemoryMarketplaceStore>();
 
-builder.Services.AddSingleton<SecureEngagementActionLinks>();
+builder.Services.AddSingleton(_ => new SecureEngagementActionLinks(builder.Configuration, engagementActionKey));
 builder.Services.AddSingleton<IEngagementActionLinkBuilder>(provider => provider.GetRequiredService<SecureEngagementActionLinks>());
 builder.Services.AddSingleton<CustomerSessionTokenService>();
 builder.Services.AddSingleton<ProfessionalSessionTokenService>();
