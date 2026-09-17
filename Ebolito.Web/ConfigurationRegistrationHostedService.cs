@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Common.Registration;
+using Common.Secrets;
 
 namespace Ebolito.Web;
 
@@ -7,8 +8,10 @@ public sealed class ConfigurationRegistrationHostedService(
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
     IWebHostEnvironment environment,
+    ISecretProvider secrets,
     ILogger<ConfigurationRegistrationHostedService> logger) : BackgroundService
 {
+    private const string ApplicationId = "Ebolito";
     private static readonly TimeSpan RetryInterval = TimeSpan.FromMinutes(5);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -22,26 +25,29 @@ public sealed class ConfigurationRegistrationHostedService(
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (await TryRegisterAsync(baseUrl, stoppingToken))
-                return;
-
-            try
-            {
-                await Task.Delay(RetryInterval, stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                return;
-            }
+            if (await TryRegisterAsync(baseUrl, stoppingToken)) return;
+            try { await Task.Delay(RetryInterval, stoppingToken); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }
 
     private async Task<bool> TryRegisterAsync(string baseUrl, CancellationToken cancellationToken)
     {
-        var registrationKey = Environment.GetEnvironmentVariable("AEGIS_CONFIGURATION_REGISTRATION_KEY");
+        string secretName = RegistrationCredentialResolver.SecretNameFor(ApplicationId);
+        string? registrationKey;
+        try
+        {
+            registrationKey = await secrets.GetAsync(secretName, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "Common.Secrets could not resolve Ebolito's Aegis.Configuration registration credential; Ebolito remains operational and will retry.");
+            return false;
+        }
+
         if (string.IsNullOrWhiteSpace(registrationKey))
         {
-            logger.LogWarning("Aegis.Configuration URL is configured but AEGIS_CONFIGURATION_REGISTRATION_KEY is missing; Ebolito is not registered and will retry.");
+            logger.LogWarning("Common.Secrets did not resolve required secret {SecretName}; Ebolito is not registered and will retry.", secretName);
             return false;
         }
 
@@ -63,13 +69,7 @@ public sealed class ConfigurationRegistrationHostedService(
             }
 
             var client = httpClientFactory.CreateClient(nameof(ConfigurationRegistrationHostedService));
-            var registrar = new ConfigurationRegistrar(
-                client,
-                new RegistrationOptions(
-                    new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute),
-                    registrationKey,
-                    TimeSpan.FromSeconds(10)));
-
+            var registrar = new ConfigurationRegistrar(client, new RegistrationOptions(new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute), registrationKey, TimeSpan.FromSeconds(10)));
             var result = await registrar.RegisterContractAsync(contract, cancellationToken);
             if (!result.Succeeded)
             {
@@ -77,13 +77,10 @@ public sealed class ConfigurationRegistrationHostedService(
                 return false;
             }
 
-            logger.LogInformation("Ebolito configuration contract registered once with Aegis.Configuration with HTTP {StatusCode}.", (int?)result.StatusCode);
+            logger.LogInformation("Ebolito configuration contract registered once with Aegis.Configuration with HTTP {StatusCode} using Common.Secrets.", (int?)result.StatusCode);
             return true;
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Unable to register Ebolito with Aegis.Configuration; Ebolito remains operational and will retry.");
