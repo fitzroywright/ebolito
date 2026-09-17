@@ -29,7 +29,7 @@
       "kind": "Secret",
       "required": true,
       "purpose": "Signs verified customer sessions so engagement creation and verified-review submission cannot trust a client-supplied customer identifier by itself.",
-      "environmentVariable": "EBOLITO_CUSTOMER_SESSION_KEY",
+      "secretName": "ebolito/session/customer-signing-key",
       "validator": "secret-present",
       "instructionId": "ebolito.customer-session-key"
     },
@@ -39,7 +39,7 @@
       "kind": "Secret",
       "required": true,
       "purpose": "Signs professional-scoped mobile-verified sessions used for inbox, profile, portfolio, engagement progression and notification-routing management.",
-      "environmentVariable": "EBOLITO_PROFESSIONAL_SESSION_KEY",
+      "secretName": "ebolito/session/professional-signing-key",
       "validator": "secret-present",
       "instructionId": "ebolito.professional-session-key"
     },
@@ -67,7 +67,7 @@
       "displayName": "Common.Diagnostics",
       "kind": "Diagnostic",
       "required": true,
-      "purpose": "Provides bounded operational verification for marketplace, database, customer and professional identity/session security, portfolio storage, notification routing, action-link security and messaging health. Environment-only machine credentials are checked by diagnostics until Common.Secrets integration is enabled for them.",
+      "purpose": "Provides bounded operational verification for marketplace, database, customer and professional identity/session security, portfolio storage, notification routing, action-link security and messaging health.",
       "validator": "diagnostics",
       "instructionId": "common.diagnostics"
     }
