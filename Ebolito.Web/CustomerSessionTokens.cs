@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Common.Secrets;
 
 namespace Ebolito.Web;
 
@@ -8,18 +9,15 @@ public sealed record CustomerSession(Guid CustomerId, string Token, DateTimeOffs
 public sealed class CustomerSessionTokenService
 {
     public const string HeaderName = "X-Ebolito-Customer-Session";
+    public const string SigningKeySecretName = "ebolito/session/customer-signing-key";
 
     private readonly byte[]? signingKey;
     private readonly TimeSpan lifetime;
 
-    public CustomerSessionTokenService(IConfiguration configuration, IWebHostEnvironment environment)
+    public CustomerSessionTokenService(IConfiguration configuration, ISecretProvider secrets)
     {
-        var secret = Environment.GetEnvironmentVariable("EBOLITO_CUSTOMER_SESSION_KEY");
-        signingKey = !string.IsNullOrWhiteSpace(secret)
-            ? Encoding.UTF8.GetBytes(secret)
-            : environment.IsDevelopment()
-                ? RandomNumberGenerator.GetBytes(32)
-                : null;
+        var secret = ResolveSecret(secrets, SigningKeySecretName);
+        signingKey = string.IsNullOrWhiteSpace(secret) ? null : Encoding.UTF8.GetBytes(secret);
         lifetime = TimeSpan.FromHours(Math.Clamp(configuration.GetValue("Ebolito:CustomerSessionHours", 24 * 90), 1, 24 * 365));
     }
 
@@ -28,7 +26,7 @@ public sealed class CustomerSessionTokenService
     public CustomerSession Issue(Guid customerId)
     {
         if (signingKey is null)
-            throw new InvalidOperationException("Customer session signing is not configured.");
+            throw new InvalidOperationException($"Customer session signing is not configured. Common.Secrets did not resolve '{SigningKeySecretName}'.");
 
         var expiresAt = DateTimeOffset.UtcNow.Add(lifetime);
         var expires = expiresAt.ToUnixTimeSeconds();
@@ -65,6 +63,18 @@ public sealed class CustomerSessionTokenService
         using var hmac = new HMACSHA256(signingKey!);
         var payload = Encoding.UTF8.GetBytes($"{customerId:D}|{expires}");
         return Base64Url(hmac.ComputeHash(payload));
+    }
+
+    private static string? ResolveSecret(ISecretProvider secrets, string name)
+    {
+        try
+        {
+            return secrets.GetAsync(name).GetAwaiter().GetResult();
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException($"Common.Secrets could not resolve required Ebolito secret '{name}'.", exception);
+        }
     }
 
     private static string Base64Url(byte[] value) => Convert.ToBase64String(value)
