@@ -1,7 +1,7 @@
 {
   "applicationId": "Ebolito",
   "displayName": "Ebolito Skills & Services",
-  "version": "1.4",
+  "version": "1.5",
   "requirements": [
     {
       "id": "database",
@@ -22,6 +22,16 @@
       "configurationKey": "Ebolito:PublicBaseUrl",
       "validator": "configured",
       "instructionId": "ebolito.public-base-url"
+    },
+    {
+      "id": "mobile-verification-delivery",
+      "displayName": "Mobile Verification Delivery Provider",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Selects mobile verification delivery explicitly instead of changing implementation based on the ASP.NET hosting environment. Supported values are Disabled and Console until a production SMS provider is commissioned.",
+      "configurationKey": "MobileVerification:Delivery",
+      "validator": "configured",
+      "instructionId": "ebolito.mobile-verification-delivery"
     },
     {
       "id": "customer-session-signing",
