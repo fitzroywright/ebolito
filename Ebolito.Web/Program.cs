@@ -9,15 +9,11 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 var builder = WebApplication.CreateBuilder(args);
 
 await using CommonSecretsBootstrapRuntime bootstrapSecrets = CommonSecretsBootstrapRuntime.Create(builder.Configuration);
-string? postgresConnection = await bootstrapSecrets.Provider.GetAsync("ConnectionStrings:Ebolito");
+string postgresConnection = await bootstrapSecrets.Provider.GetRequiredAsync("ConnectionStrings:Ebolito");
 string? engagementActionKey = await bootstrapSecrets.Provider.GetAsync("Ebolito:EngagementActionKey");
 
 bootstrapSecrets.Register(builder.Services);
-
-if (!string.IsNullOrWhiteSpace(postgresConnection))
-    builder.Services.AddSingleton<IMarketplaceStore>(_ => new PostgresMarketplaceStore(postgresConnection));
-else
-    builder.Services.AddSingleton<IMarketplaceStore, InMemoryMarketplaceStore>();
+builder.Services.AddSingleton<IMarketplaceStore>(_ => new PostgresMarketplaceStore(postgresConnection));
 
 builder.Services.AddSingleton(_ => new SecureEngagementActionLinks(builder.Configuration, engagementActionKey));
 builder.Services.AddSingleton<IEngagementActionLinkBuilder>(provider => provider.GetRequiredService<SecureEngagementActionLinks>());
@@ -29,9 +25,13 @@ builder.Services.AddEbolitoCommonMessaging(builder.Configuration, postgresConnec
 
 builder.Services.AddSingleton<IMarketplaceService, MarketplaceService>();
 builder.Services.AddSingleton<IVerificationChallengeStore, InMemoryVerificationChallengeStore>();
-builder.Services.TryAddSingleton<IMobileVerificationSender>(_ => builder.Environment.IsDevelopment()
-    ? new DevelopmentMobileVerificationSender()
-    : new DisabledMobileVerificationSender());
+string mobileVerificationDelivery = builder.Configuration["MobileVerification:Delivery"]?.Trim() ?? "Disabled";
+builder.Services.TryAddSingleton<IMobileVerificationSender>(_ => mobileVerificationDelivery.ToUpperInvariant() switch
+{
+    "CONSOLE" => new ConsoleMobileVerificationSender(),
+    "DISABLED" => new DisabledMobileVerificationSender(),
+    _ => throw new InvalidOperationException("MobileVerification:Delivery must be either 'Disabled' or 'Console'.")
+});
 builder.Services.AddSingleton<ICustomerIdentityService, CustomerIdentityService>();
 builder.Services.AddSingleton<EbolitoEngineeringDiagnostics>();
 builder.Services.AddHttpClient();
@@ -63,7 +63,7 @@ async Task<IResult> ReadyResult(IMarketplaceStore store, CancellationToken ct)
         }
         catch { return Results.StatusCode(StatusCodes.Status503ServiceUnavailable); }
     }
-    return Results.Ok(new { status = "ready", store = "memory", application = "Ebolito" });
+    return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
 }
 
 app.MapGet("/health/live", () => Results.Ok(new { status = "live", application = "Ebolito" }));
