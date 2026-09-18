@@ -16,10 +16,10 @@ public sealed class ConfigurationRegistrationHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        string? baseUrl = configuration["Aegis:Configuration:Url"];
+        string? baseUrl = configuration["Aegis:Operations:Url"] ?? configuration["AegisOperations:BaseUrl"];
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
-            logger.LogInformation("Aegis.Configuration registration is disabled because no Configuration URL is configured.");
+            logger.LogInformation("Application registration is disabled because no Operations URL is configured.");
             return;
         }
 
@@ -33,24 +33,6 @@ public sealed class ConfigurationRegistrationHostedService(
 
     private async Task<bool> TryRegisterAsync(string baseUrl, CancellationToken cancellationToken)
     {
-        string secretName = RegistrationCredentialResolver.SecretNameFor(ApplicationId);
-        string? registrationKey;
-        try
-        {
-            registrationKey = await secrets.GetAsync(secretName, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-        {
-            logger.LogWarning(ex, "Common.Secrets could not resolve Ebolito's Aegis.Configuration registration credential; Ebolito remains operational and will retry.");
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(registrationKey))
-        {
-            logger.LogWarning("Common.Secrets did not resolve required secret {SecretName}; Ebolito is not registered and will retry.", secretName);
-            return false;
-        }
-
         string contractPath = Path.Combine(environment.ContentRootPath, "Configuration", "ebolito.configuration-contract.json");
         if (!File.Exists(contractPath))
         {
@@ -106,15 +88,22 @@ public sealed class ConfigurationRegistrationHostedService(
             }
 
             HttpClient client = httpClientFactory.CreateClient(nameof(ConfigurationRegistrationHostedService));
-            ConfigurationRegistrar registrar = new(client, new RegistrationOptions(new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute), registrationKey, TimeSpan.FromSeconds(10)));
-            RegistrationResult result = await registrar.RegisterContractAsync(contract, cancellationToken);
-            if (!result.Succeeded)
+            var registration = new ApplicationRegistrationClient(
+                client,
+                new ApplicationRegistrationOptions(
+                    new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute),
+                    ApplicationId,
+                    contract["instanceId"]?.GetValue<string>() ?? Environment.MachineName,
+                    RegistrationCredentialResolver.EnvironmentVariableName,
+                    TimeSpan.FromSeconds(10)));
+            ApplicationRegistrationStatus result = await registration.RegisterAsync(contract, cancellationToken);
+            if (!result.IsRegistered)
             {
-                logger.LogWarning("Aegis.Configuration registration failed for Ebolito: {RegistrationError}; Ebolito remains operational and will retry.", result.Error ?? "Unknown registration failure.");
+                logger.LogWarning("Ebolito registration state is {RegistrationState}: {RegistrationError}; Ebolito remains operational. Bootstrap must be repeated in Operations when the key is missing, invalid, or revoked.", result.State, result.Error ?? "No additional detail.");
                 return false;
             }
 
-            logger.LogInformation("Ebolito runtime commissioning state registered with Aegis.Configuration with HTTP {StatusCode} using Common.Secrets.", (int?)result.StatusCode);
+            logger.LogInformation("Ebolito registration is valid and its runtime commissioning contract was published.");
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
