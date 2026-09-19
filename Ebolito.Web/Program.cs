@@ -36,6 +36,7 @@ builder.Services.AddSingleton<ICustomerIdentityService, CustomerIdentityService>
 builder.Services.AddSingleton<EbolitoEngineeringDiagnostics>();
 builder.Services.AddHttpClient();
 builder.Services.AddHostedService<ConfigurationRegistrationHostedService>();
+builder.Services.AddHostedService<OperationsTelemetryPublisher>();
 builder.Services.AddHostedService<EngagementEscalationHostedService>();
 
 var app = builder.Build();
