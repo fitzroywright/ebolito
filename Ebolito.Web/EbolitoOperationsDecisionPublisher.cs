@@ -92,7 +92,7 @@ public sealed class EbolitoOperationsDecisionPublisher(
                 observedAtUtc = item.ObservedAtUtc,
                 detail = item.Detail,
                 correlationId = item.CorrelationId.ToString("D"),
-                runbook = "Ebolito / Decision Processing",
+                runbook = "docs/RUNBOOK.md",
                 data = new
                 {
                     decision = item.Decision,
