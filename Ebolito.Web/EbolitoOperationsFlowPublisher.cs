@@ -96,7 +96,7 @@ public sealed class EbolitoOperationsFlowPublisher(
                 applicationId = ApplicationId,
                 flowType = "Conversation",
                 instanceId,
-                startedAtUtc,
+                startedAtUtc = startedAt,
                 observedAtUtc = now,
                 currentStage = item.Stage,
                 relatedBusinessId = item.EngagementId.ToString("D"),
