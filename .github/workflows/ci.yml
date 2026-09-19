@@ -58,7 +58,10 @@ jobs:
       - name: Restore web host
         run: dotnet restore Ebolito.Web/Ebolito.Web.csproj -p:CommonRoot="${{ github.workspace }}/Common"
 
-      - name: Build web host
+      - name: Build web host Debug
+        run: dotnet build Ebolito.Web/Ebolito.Web.csproj --no-restore --configuration Debug -p:CommonRoot="${{ github.workspace }}/Common"
+
+      - name: Build web host Release
         run: dotnet build Ebolito.Web/Ebolito.Web.csproj --no-restore --configuration Release -p:CommonRoot="${{ github.workspace }}/Common"
 
       - name: Restore tests
