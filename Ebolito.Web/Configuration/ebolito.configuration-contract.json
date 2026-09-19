@@ -81,5 +81,6 @@
       "validator": "diagnostics",
       "instructionId": "common.diagnostics"
     }
-  ]
+  ],
+  "runbookReference": "docs/RUNBOOK.md"
 }
