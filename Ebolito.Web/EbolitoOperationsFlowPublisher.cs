@@ -100,7 +100,7 @@ public sealed class EbolitoOperationsFlowPublisher(
                 observedAtUtc = now,
                 currentStage = item.Stage,
                 relatedBusinessId = item.EngagementId.ToString("D"),
-                runbook = "Ebolito / Conversation",
+                runbook = "docs/RUNBOOK.md",
                 stages
             })
         };
