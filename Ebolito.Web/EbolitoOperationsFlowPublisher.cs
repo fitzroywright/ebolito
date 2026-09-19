@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Threading.Channels;
@@ -19,6 +20,7 @@ public sealed class EbolitoOperationsFlowPublisher(
     ILogger<EbolitoOperationsFlowPublisher> logger) : BackgroundService
 {
     private const string ApplicationId = "Ebolito";
+    private readonly ConcurrentDictionary<Guid, DateTimeOffset> firstObserved = new();
     private readonly Channel<EbolitoFlowTelemetryItem> queue =
         Channel.CreateBounded<EbolitoFlowTelemetryItem>(new BoundedChannelOptions(2000)
         {
@@ -65,6 +67,7 @@ public sealed class EbolitoOperationsFlowPublisher(
 
         bool terminal = item.Stage.Equals("Response", StringComparison.OrdinalIgnoreCase);
         DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset startedAt = firstObserved.GetOrAdd(item.EngagementId, item.ObservedAtUtc);
         var stages = stageNames.Select((name, index) => new
         {
             name,
@@ -73,8 +76,8 @@ public sealed class EbolitoOperationsFlowPublisher(
                 : index == currentIndex
                     ? item.Failed ? "Failed" : terminal ? "Completed" : "Active"
                     : "Pending",
-            startedAtUtc = index <= currentIndex ? item.ObservedAtUtc : (DateTimeOffset?)null,
-            completedAtUtc = index < currentIndex || (index == currentIndex && terminal) ? now : (DateTimeOffset?)null,
+            startedAtUtc = index == currentIndex ? item.ObservedAtUtc : (DateTimeOffset?)null,
+            completedAtUtc = index == currentIndex && terminal ? now : (DateTimeOffset?)null,
             warningAfterSeconds = index < 4 ? 10 : 30,
             criticalAfterSeconds = index < 4 ? 60 : 300,
             error = index == currentIndex && item.Failed ? item.Detail : null,
@@ -93,7 +96,7 @@ public sealed class EbolitoOperationsFlowPublisher(
                 applicationId = ApplicationId,
                 flowType = "Conversation",
                 instanceId,
-                startedAtUtc = item.ObservedAtUtc,
+                startedAtUtc,
                 observedAtUtc = now,
                 currentStage = item.Stage,
                 relatedBusinessId = item.EngagementId.ToString("D"),
