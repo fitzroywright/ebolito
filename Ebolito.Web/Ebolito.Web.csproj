@@ -12,11 +12,11 @@
     <ProjectReference Include="../Ebolito.Domain/Ebolito.Domain.csproj" />
     <ProjectReference Include="../Ebolito.Application/Ebolito.Application.csproj" />
     <ProjectReference Include="../Ebolito.Infrastructure/Ebolito.Infrastructure.csproj" />
-    <ProjectReference Include="$(CommonRoot)/Common.Registration/Common.Registration.csproj" />
-    <ProjectReference Include="$(CommonRoot)/Common.Secrets/Common.Secrets.csproj" />
-    <ProjectReference Include="$(CommonRoot)/Common.Messaging/Common.Messaging.csproj" />
-    <ProjectReference Include="$(CommonRoot)/Common.Messaging/Common.Messaging.Hosting/Common.Messaging.Hosting.csproj" />
-    <ProjectReference Condition="'$(UseCommonStorage)' == 'true'" Include="$(CommonRoot)/Common.Storage/Common.Storage.csproj" />
+    <ProjectReference Include="$(CommonRoot)/Common.Registration/Common.Registration.csproj" AdditionalProperties="Configuration=$(Configuration)" />
+    <ProjectReference Include="$(CommonRoot)/Common.Secrets/Common.Secrets.csproj" AdditionalProperties="Configuration=$(Configuration)" />
+    <ProjectReference Include="$(CommonRoot)/Common.Messaging/Common.Messaging.csproj" AdditionalProperties="Configuration=$(Configuration)" />
+    <ProjectReference Include="$(CommonRoot)/Common.Messaging/Common.Messaging.Hosting/Common.Messaging.Hosting.csproj" AdditionalProperties="Configuration=$(Configuration)" />
+    <ProjectReference Condition="'$(UseCommonStorage)' == 'true'" Include="$(CommonRoot)/Common.Storage/Common.Storage.csproj" AdditionalProperties="Configuration=$(Configuration)" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="Configuration/ebolito.configuration-contract.json">
