@@ -39,6 +39,8 @@ builder.Services.AddHostedService<ConfigurationRegistrationHostedService>();
 builder.Services.AddHostedService<OperationsTelemetryPublisher>();
 builder.Services.AddSingleton<EbolitoOperationsFlowPublisher>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EbolitoOperationsFlowPublisher>());
+builder.Services.AddSingleton<EbolitoOperationsDecisionPublisher>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<EbolitoOperationsDecisionPublisher>());
 builder.Services.AddHostedService<EngagementEscalationHostedService>();
 
 var app = builder.Build();
@@ -106,15 +108,26 @@ app.MapPost("/api/engagements", async (HttpRequest httpRequest, EngagementReques
     catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
 });
 
-app.MapPost("/api/engagements/{id:guid}/response", async (Guid id, HttpRequest httpRequest, EngagementResponse response, ProfessionalSessionTokenService professionalSessions, IMarketplaceStore store, IMarketplaceService marketplace, EbolitoOperationsFlowPublisher operationsFlows, CancellationToken ct) =>
+app.MapPost("/api/engagements/{id:guid}/response", async (Guid id, HttpRequest httpRequest, EngagementResponse response, ProfessionalSessionTokenService professionalSessions, IMarketplaceStore store, IMarketplaceService marketplace, EbolitoOperationsFlowPublisher operationsFlows, EbolitoOperationsDecisionPublisher decisions, CancellationToken ct) =>
 {
     var engagement = await store.GetEngagementAsync(id, ct);
     if (engagement is null) return Results.NotFound();
-    if (!ProfessionalAccess.IsAuthorized(httpRequest, engagement.ProfessionalId, professionalSessions)) return Results.Unauthorized();
+    if (!ProfessionalAccess.IsAuthorized(httpRequest, engagement.ProfessionalId, professionalSessions))
+    {
+        decisions.TryEnqueue(id, "Authorization", "Denied", true, state: "Healthy", severity: "Information", detail: "Authorization correctly denied the engagement response.");
+        return Results.Unauthorized();
+    }
     try
     {
         var updated = await marketplace.RespondToEngagementAsync(id, response, ct);
         operationsFlows.TryEnqueue(id, "Response");
+        decisions.TryEnqueue(
+            id,
+            "EngagementResponse",
+            response == EngagementResponse.Accept ? "Accepted" : "Declined",
+            true,
+            state: "Healthy",
+            severity: "Information");
         return Results.Ok(updated);
     }
     catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
@@ -154,7 +167,7 @@ app.MapGet("/engagements/{id:guid}/respond", async (Guid id, string decision, lo
     var verb = normalized == "accept" ? "Accept" : "Decline";
     return Results.Content($"""<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>{verb} Ebolito Request</title></head><body style="font-family:Arial,sans-serif;max-width:720px;margin:40px auto;padding:0 20px"><h1>{verb} this Ebolito request?</h1><p>{WebUtility.HtmlEncode(engagement.RequestText)}</p><form method="post"><input type="hidden" name="decision" value="{normalized}"><input type="hidden" name="expires" value="{expires}"><input type="hidden" name="sig" value="{WebUtility.HtmlEncode(sig)}"><button type="submit" style="padding:12px 22px">Confirm {verb}</button></form></body></html>""", "text/html");
 });
-app.MapPost("/engagements/{id:guid}/respond", async (Guid id, HttpRequest request, SecureEngagementActionLinks links, IMarketplaceService marketplace, EbolitoOperationsFlowPublisher operationsFlows, CancellationToken ct) =>
+app.MapPost("/engagements/{id:guid}/respond", async (Guid id, HttpRequest request, SecureEngagementActionLinks links, IMarketplaceService marketplace, EbolitoOperationsFlowPublisher operationsFlows, EbolitoOperationsDecisionPublisher decisions, CancellationToken ct) =>
 {
     var form = await request.ReadFormAsync(ct); var decision = form["decision"].ToString().ToLowerInvariant();
     if (!long.TryParse(form["expires"], out var expires)) return Results.BadRequest("Invalid action link.");
@@ -163,6 +176,13 @@ app.MapPost("/engagements/{id:guid}/respond", async (Guid id, HttpRequest reques
     {
         var engagement = await marketplace.RespondToEngagementAsync(id, decision == "accept" ? EngagementResponse.Accept : EngagementResponse.Decline, ct);
         operationsFlows.TryEnqueue(id, "Response");
+        decisions.TryEnqueue(
+            id,
+            "EngagementResponse",
+            decision == "accept" ? "Accepted" : "Declined",
+            true,
+            state: "Healthy",
+            severity: "Information");
         var message = engagement.Status == EngagementStatus.Accepted ? "You accepted the request. Ebolito has notified the customer." : "You declined the request. Ebolito has notified the customer.";
         return Results.Content($"<h1>Ebolito</h1><p>{WebUtility.HtmlEncode(message)}</p>", "text/html");
     }
