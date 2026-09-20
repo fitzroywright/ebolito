@@ -1,3 +1,4 @@
+using Common.Diagnostics;
 using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -60,6 +61,30 @@ public sealed class EbolitoOperationsFlowPublisher(
         RegistrationIdentityDocument identity =
             await store.LoadOrCreateAsync(ApplicationId, instanceId, ct);
         if (string.IsNullOrWhiteSpace(identity.Credential)) return;
+
+        using HttpClient lifecycleClient = new() { Timeout = TimeSpan.FromSeconds(5) };
+        var lifecycleSink = new HttpLifecycleEventSink(
+            lifecycleClient,
+            new HttpLifecycleEventSinkOptions(new Uri(operationsUrl.TrimEnd('/') + "/api/operations/lifecycle/events")),
+            (request, lifecycleEvent, _) =>
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", identity.Credential);
+                request.Headers.TryAddWithoutValidation("X-Aegis-Application-Id", identity.ApplicationId);
+                request.Headers.TryAddWithoutValidation("X-Aegis-Instance-Id", identity.InstanceId);
+                request.Headers.TryAddWithoutValidation("X-Aegis-Installation-Id", identity.InstallationId);
+                return Task.CompletedTask;
+            });
+        await new LifecycleTelemetry(lifecycleSink).EmitAsync(
+            LifecycleEvent.Create(
+                ApplicationId,
+                instanceId,
+                "Conversation",
+                item.Stage,
+                item.Failed ? LifecycleEventOutcome.Failed : LifecycleEventOutcome.Succeeded,
+                item.EngagementId.ToString("D"),
+                relatedBusinessId: item.EngagementId.ToString("D"),
+                occurredAtUtc: item.ObservedAtUtc),
+            ct);
 
         string[] stageNames = ["Inbound", "Identity", "Authorization", "Intent", "Handler", "Dependencies", "Response"];
         int currentIndex = Array.FindIndex(stageNames, x => x.Equals(item.Stage, StringComparison.OrdinalIgnoreCase));
