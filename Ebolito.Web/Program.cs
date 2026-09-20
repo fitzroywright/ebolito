@@ -1,5 +1,6 @@
 using System.Net;
 using Common.Secrets;
+using Common.Registration;
 using Ebolito.Application;
 using Ebolito.Domain;
 using Ebolito.Infrastructure;
@@ -7,6 +8,12 @@ using Ebolito.Web;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
+string operationsLogInstanceId = builder.Configuration["Service:Identity"]?.Trim() ?? Environment.MachineName;
+string operationsLogIdentityFile = builder.Configuration["Aegis:Registration:IdentityFile"]
+    ?? (OperatingSystem.IsWindows()
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Aegis", "Ebolito", "registration-identity.json")
+        : "/var/lib/aegis/ebolito/registration-identity.json");
+builder.Services.AddAegisOperationsLogging(builder.Configuration, "Ebolito", operationsLogInstanceId, operationsLogIdentityFile, builder.Environment.EnvironmentName);
 
 await using CommonSecretsBootstrapRuntime bootstrapSecrets = CommonSecretsBootstrapRuntime.Create(builder.Configuration);
 string postgresConnection = await bootstrapSecrets.Provider.GetRequiredAsync("ConnectionStrings:Ebolito");
