@@ -118,6 +118,12 @@ public sealed class ConfigurationRegistrationHostedService(
                     new JsonObject
                     {
                         ["displayName"] = "Ebolito",
+                        ["presentation"] = new JsonObject
+                        {
+                            ["iconUrl"] = configuration["Aegis:Presentation:IconUrl"],
+                            ["shortName"] = "Ebolito",
+                            ["accent"] = configuration["Aegis:Presentation:Accent"] ?? "gold"
+                        },
                         ["siteId"] = contract["siteId"]?.DeepClone(),
                         ["publicUrl"] = configuration["Ebolito:PublicBaseUrl"],
                         ["hostname"] = Environment.MachineName,
