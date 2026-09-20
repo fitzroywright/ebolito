@@ -51,6 +51,12 @@ public sealed class ConfigurationRegistrationHostedService(
 
             contract["siteId"] = NullIfBlank(configuration["Site:Id"]);
             contract["instanceId"] = NullIfBlank(configuration["Service:Identity"] ?? Environment.MachineName);
+            contract["presentation"] = new JsonObject
+            {
+                ["iconUrl"] = configuration["Aegis:Presentation:IconUrl"],
+                ["shortName"] = "Ebolito",
+                ["accent"] = configuration["Aegis:Presentation:Accent"] ?? "gold"
+            };
 
             bool databaseConfigured = await HasSecretAsync("ConnectionStrings:Ebolito", cancellationToken);
             bool customerSigningConfigured = await HasSecretAsync("ebolito/session/customer-signing-key", cancellationToken);
