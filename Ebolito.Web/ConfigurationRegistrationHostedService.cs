@@ -75,6 +75,20 @@ public sealed class ConfigurationRegistrationHostedService(
                 ["shortName"] = "Ebolito",
                 ["accent"] = configuration["Aegis:Presentation:Accent"] ?? "gold"
             };
+            string? diagnosticSecretName =
+                NullIfBlank(configuration["Aegis:Diagnostics:RequestCredentialSecretName"]);
+            contract["diagnostics"] = new JsonObject
+            {
+                ["baseUrl"] = NullIfBlank(configuration["Ebolito:PublicBaseUrl"]),
+                ["healthPath"] = "/health",
+                ["diagnosticsRunPath"] = "/api/engineering/diagnostics/diagnostic-level/run",
+                ["diagnosticsRunsPath"] = "/api/engineering/diagnostics/diagnostic-level/runs",
+                ["supportsRemoteDiagnostics"] = true,
+                ["supportsOperationalTelemetry"] = true,
+                ["authenticationScheme"] = "DiagnosticLevel-HMAC-SHA256",
+                ["secretName"] = diagnosticSecretName,
+                ["supportedLevels"] = new JsonArray(5, 4, 3, 2, 1)
+            };
 
             bool databaseConfigured = await HasSecretAsync("ConnectionStrings:Ebolito", cancellationToken);
             bool customerSigningConfigured = await HasSecretAsync("ebolito/session/customer-signing-key", cancellationToken);
