@@ -1,4 +1,5 @@
 using System.Net;
+using Common.Diagnostics;
 using Common.Secrets;
 using Common.Registration;
 using Ebolito.Application;
@@ -20,6 +21,22 @@ string postgresConnection = await bootstrapSecrets.Provider.GetRequiredAsync("Co
 string? engagementActionKey = await bootstrapSecrets.Provider.GetAsync("Ebolito:EngagementActionKey");
 
 bootstrapSecrets.Register(builder.Services);
+builder.Services.AddCommonDiagnostics();
+builder.Services.AddSingleton(new DiagnosticLevelExecutionOptions
+{
+    Application = "Ebolito",
+    Component = "Ebolito.Web",
+    InstanceId = operationsLogInstanceId,
+    CatalogVersion = "1"
+});
+builder.Services.AddSingleton(new DiagnosticLevelStoreOptions
+{
+    Path = builder.Configuration["Aegis:Diagnostics:StorePath"]?.Trim()
+        ?? Path.Combine(builder.Environment.ContentRootPath, "data", "diagnostic-level", "ebolito.db")
+});
+builder.Services.AddSingleton<IDiagnosticLevelRequestCredentialProvider, CommonSecretsDiagnosticLevelRequestCredentialProvider>();
+builder.Services.AddSingleton<IDiagnosticLevelLocalTest, BasicRuntimeIdentityDiagnosticLevelTest>();
+builder.Services.AddSingleton<IDiagnosticLevelLocalTest, BasicControlPlaneConfigurationDiagnosticLevelTest>();
 builder.Services.AddSingleton<IMarketplaceStore>(_ => new PostgresMarketplaceStore(postgresConnection));
 
 builder.Services.AddSingleton(_ => new SecureEngagementActionLinks(builder.Configuration, engagementActionKey));
@@ -51,6 +68,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<EbolitoOperationsD
 builder.Services.AddHostedService<EngagementEscalationHostedService>();
 
 var app = builder.Build();
+app.MapDiagnosticLevelRuntime();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
