@@ -82,5 +82,6 @@
       "instructionId": "common.diagnostics"
     }
   ],
-  "runbookReference": "docs/RUNBOOK.md"
+  "runbookReference": "docs/RUNBOOK.md",
+  "module": "Ebolito.Web"
 }
