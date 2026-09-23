@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Common.Diagnostics;
 using Common.Registration;
 using Common.Secrets;
 
@@ -16,22 +17,29 @@ public sealed class ConfigurationRegistrationHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        string? configurationUrl = configuration["Aegis:Configuration:Url"];
-        if (string.IsNullOrWhiteSpace(configurationUrl))
-        {
-            logger.LogInformation("Application registration is disabled because no Configuration URL is configured.");
-            return;
-        }
+        string configurationUrl = AegisControlPlaneEndpoints.ResolvePublic(
+            configuration,
+            AegisControlPlaneService.Configuration,
+            logger,
+            configurationKey: "Aegis:Configuration:Url");
+        string operationsUrl = AegisControlPlaneEndpoints.ResolvePublic(
+            configuration,
+            AegisControlPlaneService.Operations,
+            logger,
+            configurationKey: "Aegis:Operations:Url");
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (await TryRegisterAsync(configurationUrl, stoppingToken)) return;
+            await TryRegisterAsync(configurationUrl, operationsUrl, stoppingToken);
             try { await Task.Delay(RetryInterval, stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }
 
-    private async Task<bool> TryRegisterAsync(string configurationUrl, CancellationToken cancellationToken)
+    private async Task<bool> TryRegisterAsync(
+        string configurationUrl,
+        string operationsUrl,
+        CancellationToken cancellationToken)
     {
         string contractPath = Path.Combine(environment.ContentRootPath, "Configuration", "ebolito.configuration-contract.json");
         if (!File.Exists(contractPath))
@@ -49,8 +57,18 @@ public sealed class ConfigurationRegistrationHostedService(
                 return false;
             }
 
+            contract["module"] = "Ebolito.Web";
+            contract["runbookReference"] = "docs/RUNBOOK.md";
             contract["siteId"] = NullIfBlank(configuration["Site:Id"]);
             contract["instanceId"] = NullIfBlank(configuration["Service:Identity"] ?? Environment.MachineName);
+            contract["runtimeEnvironment"] = new JsonObject
+            {
+                ["machineName"] = Environment.MachineName,
+                ["operatingSystem"] = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+                ["processArchitecture"] = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+                ["frameworkDescription"] = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+                ["hostingEnvironment"] = environment.EnvironmentName
+            };
             contract["presentation"] = new JsonObject
             {
                 ["iconUrl"] = configuration["Aegis:Presentation:IconUrl"],
@@ -109,6 +127,14 @@ public sealed class ConfigurationRegistrationHostedService(
                     : "/var/lib/aegis/ebolito/registration-identity.json");
 
             HttpClient client = httpClientFactory.CreateClient(nameof(ConfigurationRegistrationHostedService));
+            HttpClient lifecycleClient = httpClientFactory.CreateClient(
+                $"{nameof(ConfigurationRegistrationHostedService)}.Lifecycle");
+            ILifecycleEventSink lifecycle = CreateLifecycleSink(
+                operationsUrl,
+                lifecycleClient,
+                identityFile,
+                instanceId);
+
             var registration = new RegistrationLifecycleClient(
                 client,
                 new RegistrationLifecycleOptions(
@@ -116,14 +142,20 @@ public sealed class ConfigurationRegistrationHostedService(
                     ApplicationId,
                     instanceId,
                     identityFile,
-                    TimeSpan.FromSeconds(10)),
-                logger: logger);
+                    TimeSpan.FromSeconds(Math.Clamp(
+                        configuration.GetValue("Aegis:Registration:RequestTimeoutSeconds", 30),
+                        5,
+                        120)),
+                    RunbookReference: "docs/RUNBOOK.md"),
+                logger: logger,
+                lifecycleEventSink: lifecycle);
 
             RegistrationLifecycleStatus result =
                 await registration.StepAsync(
                     new JsonObject
                     {
                         ["displayName"] = "Ebolito",
+                        ["module"] = "Ebolito.Web",
                         ["presentation"] = new JsonObject
                         {
                             ["iconUrl"] = configuration["Aegis:Presentation:IconUrl"],
@@ -167,6 +199,49 @@ public sealed class ConfigurationRegistrationHostedService(
             logger.LogWarning(ex, "Unable to register Ebolito with Aegis.Configuration; Ebolito remains operational and will retry.");
             return false;
         }
+    }
+
+    private static ILifecycleEventSink CreateLifecycleSink(
+        string operationsUrl,
+        HttpClient client,
+        string identityFile,
+        string instanceId)
+    {
+        if (!Uri.TryCreate(
+                operationsUrl.TrimEnd('/') + "/api/operations/activity/observe",
+                UriKind.Absolute,
+                out Uri? endpoint))
+            return new NullLifecycleEventSink();
+
+        var store = new FileRegistrationIdentityStore(identityFile);
+        return new HttpLifecycleEventSink(
+            client,
+            new HttpLifecycleEventSinkOptions(endpoint, TimeSpan.FromSeconds(10)),
+            async (request, lifecycleEvent, cancellationToken) =>
+            {
+                RegistrationIdentityDocument identity =
+                    await store.LoadOrCreateAsync(
+                        ApplicationId,
+                        instanceId,
+                        cancellationToken);
+
+                if (string.IsNullOrWhiteSpace(identity.Credential))
+                    return;
+
+                request.Headers.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue(
+                        "Bearer",
+                        identity.Credential);
+                request.Headers.TryAddWithoutValidation(
+                    "X-Aegis-Application-Id",
+                    identity.ApplicationId);
+                request.Headers.TryAddWithoutValidation(
+                    "X-Aegis-Instance-Id",
+                    identity.InstanceId);
+                request.Headers.TryAddWithoutValidation(
+                    "X-Aegis-Installation-Id",
+                    identity.InstallationId);
+            });
     }
 
     private async Task<bool> IsMessagingConfiguredAsync(CancellationToken cancellationToken)
