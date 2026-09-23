@@ -83,5 +83,22 @@
     }
   ],
   "runbookReference": "docs/RUNBOOK.md",
-  "module": "Ebolito.Web"
+  "module": "Ebolito.Web",
+  "diagnostics": {
+    "baseUrl": null,
+    "healthPath": "/health",
+    "diagnosticsRunPath": "/api/engineering/diagnostics/diagnostic-level/run",
+    "diagnosticsRunsPath": "/api/engineering/diagnostics/diagnostic-level/runs",
+    "supportsRemoteDiagnostics": true,
+    "supportsOperationalTelemetry": true,
+    "authenticationScheme": "DiagnosticLevel-HMAC-SHA256",
+    "secretName": "diagnostics/machine/Ebolito",
+    "supportedLevels": [
+      5,
+      4,
+      3,
+      2,
+      1
+    ]
+  }
 }
