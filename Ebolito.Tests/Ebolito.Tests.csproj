@@ -16,5 +16,6 @@
     <ProjectReference Include="../Ebolito.Domain/Ebolito.Domain.csproj" />
     <ProjectReference Include="../Ebolito.Application/Ebolito.Application.csproj" />
     <ProjectReference Include="../Ebolito.Infrastructure/Ebolito.Infrastructure.csproj" />
+    <ProjectReference Include="../Ebolito.Web/Ebolito.Web.csproj" />
   </ItemGroup>
 </Project>

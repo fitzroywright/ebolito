@@ -33,6 +33,17 @@ public sealed class EbolitoOperationsFlowPublisher(
     public bool TryEnqueue(Guid engagementId, string stage, string? detail = null, bool failed = false) =>
         queue.Writer.TryWrite(new(engagementId, stage, DateTimeOffset.UtcNow, detail, failed));
 
+    public static LifecycleEvent CreateLifecycleEvent(EbolitoFlowTelemetryItem item, string instanceId) =>
+        LifecycleEvent.Create(
+            ApplicationId,
+            instanceId,
+            "Conversation",
+            item.Stage,
+            item.Failed ? LifecycleEventOutcome.Failed : LifecycleEventOutcome.Succeeded,
+            item.EngagementId.ToString("D"),
+            relatedBusinessId: item.EngagementId.ToString("D"),
+            occurredAtUtc: item.ObservedAtUtc);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await foreach (EbolitoFlowTelemetryItem item in queue.Reader.ReadAllAsync(stoppingToken))
@@ -75,15 +86,7 @@ public sealed class EbolitoOperationsFlowPublisher(
                 return Task.CompletedTask;
             });
         await new LifecycleTelemetry(lifecycleSink).EmitAsync(
-            LifecycleEvent.Create(
-                ApplicationId,
-                instanceId,
-                "Conversation",
-                item.Stage,
-                item.Failed ? LifecycleEventOutcome.Failed : LifecycleEventOutcome.Succeeded,
-                item.EngagementId.ToString("D"),
-                relatedBusinessId: item.EngagementId.ToString("D"),
-                occurredAtUtc: item.ObservedAtUtc),
+            CreateLifecycleEvent(item, instanceId),
             ct);
 
         string[] stageNames = ["Inbound", "Identity", "Authorization", "Intent", "Handler", "Dependencies", "Response"];
