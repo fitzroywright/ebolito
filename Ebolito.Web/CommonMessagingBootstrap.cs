@@ -33,6 +33,7 @@ public static class CommonMessagingBootstrap
         // through Common.Secrets, which then selects the configured provider.
         services.AddCommonSecrets(configuration);
         services.AddCommonMessagingSecrets();
+        services.AddCommonMessagingDiagnostics();
 
         var supported = new HashSet<EngagementChannel>();
 
