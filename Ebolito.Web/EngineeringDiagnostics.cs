@@ -180,7 +180,7 @@ public sealed class EbolitoEngineeringDiagnostics(
             {
                 List<MessagingProviderHealth> providerHealth = [];
                 foreach (IExternalMessageChannelDiagnostic diagnostic in providerDiagnostics)
-                    providerHealth.Add(await diagnostic.VerifyAsync(cancellationToken));
+                    providerHealth.Add(await diagnostic.VerifyProviderAsync(cancellationToken));
 
                 MessagingProviderHealth[] failedProviders = providerHealth
                     .Where(result => !result.Configured || !result.Reachable)
