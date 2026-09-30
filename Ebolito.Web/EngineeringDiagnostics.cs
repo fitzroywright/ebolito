@@ -3,6 +3,9 @@ using System.Security.Cryptography;
 using System.Text;
 using Ebolito.Application;
 using Ebolito.Infrastructure;
+#if COMMON_MESSAGING
+using Common.Messaging;
+#endif
 #if COMMON_STORAGE
 using Common.Storage;
 #endif
@@ -47,7 +50,8 @@ public sealed record EngineeringDiagnosticRun(
 public sealed class EbolitoEngineeringDiagnostics(
     IMarketplaceStore marketplaceStore,
     IConfiguration configuration,
-    IWebHostEnvironment environment)
+    IWebHostEnvironment environment,
+    IServiceProvider services)
 {
     private readonly ConcurrentDictionary<Guid, EngineeringDiagnosticRun> _runs = new();
 
@@ -81,17 +85,33 @@ public sealed class EbolitoEngineeringDiagnostics(
             }
 
 #if COMMON_MESSAGING
-            const bool commonMessagingCompiled = true;
+            IExternalDeliveryQueueHealth? queueHealth = services.GetService<IExternalDeliveryQueueHealth>();
+            if (queueHealth is null)
+            {
+                checks.Add(new(
+                    "messaging.common",
+                    "Common.Messaging runtime",
+                    EngineeringDiagnosticStatus.Failed,
+                    "Common.Messaging is compiled but queue health is not registered."));
+            }
+            else
+            {
+                ExternalDeliveryQueueHealth health = await queueHealth.CheckHealthAsync(cancellationToken);
+                string evidence = $"Queue={health.QueueName ?? "default"}; Pending={health.Pending}; Retrying={health.Retrying}; DeadLettered={health.DeadLettered}; ExpiredLeases={health.ExpiredLeases}; OldestPending={health.OldestPendingAge?.ToString() ?? "none"}";
+                checks.Add(new(
+                    "messaging.common",
+                    "Common.Messaging runtime",
+                    health.IsAvailable ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.Failed,
+                    health.IsAvailable ? "Common.Messaging delivery queue is available." : "Common.Messaging delivery queue is unavailable.",
+                    evidence));
+            }
 #else
-            const bool commonMessagingCompiled = false;
-#endif
             checks.Add(new(
                 "messaging.common",
-                "Common.Messaging workspace integration",
-                commonMessagingCompiled ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.Warning,
-                commonMessagingCompiled
-                    ? "Common.Messaging is present in the flat workspace and the production adapter is compiled."
-                    : "Common.Messaging was not present at build time; Ebolito is using its deterministic fallback adapter."));
+                "Common.Messaging runtime",
+                EngineeringDiagnosticStatus.Warning,
+                "Common.Messaging was not present at build time; Ebolito is using its deterministic fallback adapter."));
+#endif
 
 #if COMMON_STORAGE
             const bool commonStorageCompiled = true;
@@ -151,11 +171,48 @@ public sealed class EbolitoEngineeringDiagnostics(
             var enabledChannels = new[] { "Slack", "Teams", "Email", "Sms", "WhatsApp" }
                 .Where(name => configuration.GetValue($"Messaging:{name}:Enabled", false))
                 .ToArray();
+#if COMMON_MESSAGING
+            IExternalMessageChannelDiagnostic[] providerDiagnostics = services
+                .GetServices<IExternalMessageChannel>()
+                .OfType<IExternalMessageChannelDiagnostic>()
+                .ToArray();
+            if (providerDiagnostics.Length > 0)
+            {
+                List<MessagingProviderHealth> providerHealth = [];
+                foreach (IExternalMessageChannelDiagnostic diagnostic in providerDiagnostics)
+                    providerHealth.Add(await diagnostic.VerifyAsync(cancellationToken));
+
+                MessagingProviderHealth[] failedProviders = providerHealth
+                    .Where(result => !result.Configured || !result.Reachable)
+                    .ToArray();
+                string evidence = string.Join("; ", providerHealth.Select(result =>
+                    $"{result.Provider}: Configured={result.Configured}, Reachable={result.Reachable}, State={result.State}, Reason={result.Reason ?? "none"}"));
+                checks.Add(new(
+                    "messaging.channels",
+                    "External messaging provider verification",
+                    failedProviders.Length == 0 ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.Failed,
+                    failedProviders.Length == 0
+                        ? $"{providerHealth.Count} diagnostic-capable messaging provider(s) passed live verification."
+                        : $"{failedProviders.Length} messaging provider(s) failed live verification.",
+                    evidence));
+            }
+            else
+            {
+                checks.Add(new(
+                    "messaging.channels",
+                    "External messaging provider verification",
+                    enabledChannels.Length > 0 ? EngineeringDiagnosticStatus.Warning : EngineeringDiagnosticStatus.Warning,
+                    enabledChannels.Length > 0
+                        ? $"Enabled channels are configured ({string.Join(", ", enabledChannels)}), but none expose a live provider verification probe."
+                        : "No production external messaging channels are enabled."));
+            }
+#else
             checks.Add(new(
                 "messaging.channels",
-                "External channel configuration",
-                enabledChannels.Length > 0 ? EngineeringDiagnosticStatus.Passed : EngineeringDiagnosticStatus.Warning,
-                enabledChannels.Length > 0 ? $"Enabled channels: {string.Join(", ", enabledChannels)}." : "No production external messaging channels are enabled."));
+                "External messaging provider verification",
+                EngineeringDiagnosticStatus.Warning,
+                "Common.Messaging is not compiled; provider verification is unavailable."));
+#endif
         }
 
         if (level <= 2)
