@@ -108,8 +108,11 @@ public static class CommonMessagingBootstrap
         {
             services.AddWhatsAppMessagingChannel(new WhatsAppMessageOptions
             {
-                EndpointSecretName = configuration["Messaging:WhatsApp:EndpointSecretName"] ?? "messaging/whatsapp/endpoint",
-                ApiTokenSecretName = configuration["Messaging:WhatsApp:ApiTokenSecretName"] ?? "messaging/whatsapp/api-token"
+                Enabled = true,
+                GraphApiVersion = configuration["Messaging:WhatsApp:GraphApiVersion"] ?? "v23.0",
+                PhoneNumberId = configuration["Messaging:WhatsApp:PhoneNumberId"] ?? string.Empty,
+                AccessTokenSecretName = configuration["Messaging:WhatsApp:AccessTokenSecretName"]
+                    ?? "messaging/whatsapp/access-token"
             });
             supported.Add(EngagementChannel.WhatsApp);
         }
